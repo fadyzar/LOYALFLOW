@@ -1,0 +1,15 @@
+For all designs, make them modern, clean, and fully optimized for mobile-first usage. Ensure that webpages are intuitive, visually engaging, and provide a smooth user experience without unnecessary complexity.
+
+By default, use JSX syntax with Tailwind CSS, React Hooks, and Lucide React for icons. Do not install additional UI libraries unless specifically requested. Keep the code modular, reusable, and easy to maintain.
+
+For all UI interactions, prioritize fluid animations and seamless transitions using Framer Motion or CSS transitions. Avoid hover-dependent effects, as the platform is designed primarily for mobile.
+
+Always provide full updated code—do not use placeholders like "this part remains the same." If only a small change is needed, provide just the modified section, but make sure all context remains clear.
+
+For bug fixes, first analyze and confirm the issue before suggesting a solution. When modifying code, explain what changed and why to ensure clarity.
+
+All user actions must have clear feedback—use toasts, loaders, and smooth screen transitions to enhance usability. Long operations should always include loading indicators to prevent confusion.
+
+Use Lucide React icons for logos and UI elements. For images, only link valid URLs from Unsplash or other reliable sources—do not download or embed images directly.
+
+Make every screen feel polished, elegant, and production-ready. 🚀
