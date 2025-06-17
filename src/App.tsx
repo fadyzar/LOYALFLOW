@@ -31,7 +31,9 @@ function App() {
 function AppContent() {
   const location = useLocation();
   const isExternalPage = location.pathname.startsWith('/book/');
-  const showBottomNav = !isExternalPage && location.pathname !== '/login';
+  const hideBottomNavPaths = ['/login', '/register', '/register/business', '/register/staff'];
+const showBottomNav = !isExternalPage && !hideBottomNavPaths.includes(location.pathname);
+
 
   // Add state to track if modal is open
   const [isModalOpen, setIsModalOpen] = React.useState(false);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Calendar } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useRegistration } from '../../contexts/registration/hooks';
 import { RegistrationStep } from './RegistrationStep';
 import { RegistrationProgress } from './RegistrationProgress';
@@ -9,12 +9,20 @@ import { BusinessSteps } from './steps/business';
 
 export function RegistrationWizard() {
   const { state, loadingStates } = useRegistration();
-  
+  const navigate = useNavigate();
+
   // וידוא שיש צעד תקין
   const currentStep = BusinessSteps.find(step => step.id === state.currentStep);
-  
-  if (!currentStep) {
-    console.error('Invalid step:', state.currentStep);
+  const isInvalidStep = !currentStep;
+
+  React.useEffect(() => {
+    if (isInvalidStep) {
+      console.error('Invalid step:', state.currentStep);
+      navigate('/register?step=1', { replace: true });
+    }
+  }, [isInvalidStep, state.currentStep, navigate]);
+
+  if (isInvalidStep) {
     return null;
   }
 

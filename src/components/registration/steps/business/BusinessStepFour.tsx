@@ -7,14 +7,16 @@ import { ServiceCard } from './components/ServiceCard';
 import { Service } from './types';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../../contexts/auth/hooks';
+import { useNavigate } from 'react-router-dom';
 
 interface BusinessStepFourProps {
   loading?: boolean;
 }
 
 export function BusinessStepFour({ loading }: BusinessStepFourProps) {
-  const { updateStep, getStepData, completeRegistration } = useRegistration();
+  const { updateStep, getStepData, completeRegistration: completeRegistrationProp } = useRegistration();
   const { signIn } = useAuth();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Service[]>(() => {
     const savedData = getStepData(4)?.services || [];
@@ -23,7 +25,8 @@ export function BusinessStepFour({ loading }: BusinessStepFourProps) {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (loading) return;
 
     if (formData.length === 0) {
@@ -35,15 +38,12 @@ export function BusinessStepFour({ loading }: BusinessStepFourProps) {
       await updateStep(4, { services: formData });
       toast.success('השירותים נשמרו בהצלחה!');
       
-      await completeRegistration();
-
-      const step1Data = getStepData(1);
-      if (step1Data?.email && step1Data?.password) {
-        await signIn(step1Data.email, step1Data.password);
-        toast.success('תהליך ההרשמה הושלם בהצלחה!');
-      } else {
-        toast.error('שגיאה בהתחברות למערכת');
+      if (typeof completeRegistrationProp === 'function') {
+        await completeRegistrationProp();
       }
+
+   toast.success('תהליך ההרשמה הושלם בהצלחה!');
+navigate('/dashboard');
     } catch (error: any) {
       console.error('Error in step 4:', error);
       toast.error(error.message || 'שגיאה בשמירת השירותים');

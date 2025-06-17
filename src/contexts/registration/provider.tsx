@@ -1,3 +1,5 @@
+// ✅ קובץ: src/contexts/registration/provider.tsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -41,146 +43,136 @@ export function RegistrationProvider({ children }: RegistrationProviderProps) {
   };
 
   const updateStep = async (step: number, data: any) => {
-    if (step < 1 || step > 4) {
-      console.error('Invalid step number:', step);
-      return;
-    }
+    if (step < 1 || step > 4) return;
 
     setLoadingStates(prev => ({ ...prev, updatingStep: true }));
 
     try {
-      // שמירת הנתונים בסטייט
       setState(prev => ({
         ...prev,
-        currentStep: step + 1,
-        completedSteps: [...prev.completedSteps, step],
+        currentStep: step >= 4 ? 4 : step + 1,
+        completedSteps: [...new Set([...prev.completedSteps, step])],
         stepsData: {
           ...prev.stepsData,
           [`step${step}`]: data
         }
       }));
 
-      // שמירת טיוטה
       saveDraft(step, data);
+    } catch (error: any) {
+      toast.error(error.message || 'שגיאה בשמירת השלב');
+      throw error;
+    } finally {
+      setLoadingStates(prev => ({ ...prev, updatingStep: false }));
+    }
+  };
 
-      // אם זה שלב 1, צריך להקים משתמש
-      if (step === 1) {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: data.email,
-          password: data.password,
-          options: {
-            data: {
-              name: data.name,
-              phone: data.phone,
-              role: 'admin'
-            }
+  const submitFullRegistration = async () => {
+    setLoadingStates(prev => ({ ...prev, completing: true }));
+
+    try {
+      const step1 = state.stepsData.step1 as BusinessRegistrationData['step1'];
+      const step2 = state.stepsData.step2 as BusinessRegistrationData['step2'];
+      const step3 = state.stepsData.step3 as BusinessRegistrationData['step3'];
+      const step4 = state.stepsData.step4 as BusinessRegistrationData['step4'] | undefined;
+
+      // Debug logs
+      console.log("📦 step1:", step1);
+      console.log("📦 step2:", step2);
+      console.log("📦 step3:", step3);
+      console.log("📦 step4:", step4);
+
+      if (!step1?.email || !step1?.password || !step1?.name || !step1?.phone) {
+        throw new Error('פרטי התחברות חסרים');
+      }
+
+      if (!step2?.name || !step2?.type) {
+        throw new Error('פרטי עסק חסרים');
+      }
+
+      if (!step3?.hours) {
+        throw new Error('שעות פעילות חסרות');
+      }
+      console.log("🔐 Sending to Supabase:", {
+  email: step1.email,
+  password: step1.password,
+  name: step1.name,
+  phone: step1.phone,
+  role: 'admin'
+});
+      // הרשמה
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: step1.email,
+        password: step1.password,
+        options: {
+          data: {
+            name: step1.name,
+            phone: step1.phone,
+            role: 'admin'
           }
-        });
+        }
+      });
 
-        if (authError) throw authError;
+      if (signUpError) throw signUpError;
 
-        // נחכה קצת כדי לתת לטריגר בדטאבייס לסיים את הפעולות שלו
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      // התחברות מידית
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: step1.email,
+        password: step1.password
+      });
 
-        // נוודא שהמשתמש נוצר בהצלחה
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('המשתמש לא נוצר בהצלחה');
+      if (loginError) throw loginError;
 
-        // נוודא שיש לנו business_id
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('המשתמש לא נוצר בהצלחה');
 
-        if (userError) throw userError;
-        if (!userData?.business_id) throw new Error('לא נמצא עסק מקושר');
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('business_id')
+        .eq('id', user.id)
+        .single();
 
-        // נמשיך לשלב הבא
-        return;
+      if (userError || !userData?.business_id) {
+        throw new Error('לא נמצא business_id');
       }
 
-      // אם זה שלב 2, נעדכן את שם העסק
-      else if (step === 2) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user?.id) throw new Error('No user found');
+      const businessId = userData.business_id;
 
-        // קבלת ה-business_id מה-metadata של המשתמש
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
+      // עדכון פרטי עסק
+      const { error: updateBizError } = await supabase
+        .from('businesses')
+        .update({
+          name: step2.name,
+          description: step2.description || '',
+          address: step2.address || '',
+          settings: {
+            theme: 'light',
+            notifications: true,
+            type: step2.type
+          }
+        })
+        .eq('id', businessId);
 
-        if (userError) throw userError;
-        if (!userData?.business_id) throw new Error('No business found');
+      if (updateBizError) throw updateBizError;
 
-        const { error: updateError } = await supabase
-          .from('businesses')
-          .update({
-            name: data.name,
-            settings: {
-              theme: 'light',
-              notifications: true,
-              type: data.type
-            }
-          })
-          .eq('id', userData.business_id);
+      // עדכון שעות פעילות
+      const { error: hoursError } = await supabase
+        .from('business_hours')
+        .update({
+          regular_hours: step3.hours,
+          special_dates: []
+        })
+        .eq('business_id', businessId);
 
-        if (updateError) throw updateError;
-      }
-      // אם זה שלב 3, נעדכן את שעות הפעילות
-      else if (step === 3) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user?.id) throw new Error('No user found');
+      if (hoursError) throw hoursError;
 
-        // קבלת ה-business_id מה-metadata של המשתמש
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
+      // עדכון שירותים – רק אם קיימים
+      if (step4?.services?.length) {
+        await supabase.from('services').delete().eq('business_id', businessId);
 
-        if (userError) throw userError;
-        if (!userData?.business_id) throw new Error('No business found');
-
-        const { error: hoursError } = await supabase
-          .from('business_hours')
-          .update({
-            regular_hours: data.hours,
-            special_dates: []
-          })
-          .eq('business_id', userData.business_id);
-
-        if (hoursError) throw hoursError;
-      }
-      // אם זה שלב 4, נעדכן את השירותים
-      else if (step === 4) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user?.id) throw new Error('No user found');
-
-        // קבלת ה-business_id מה-metadata של המשתמש
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
-
-        if (userError) throw userError;
-        if (!userData?.business_id) throw new Error('No business found');
-
-        // מחיקת השירות הדיפולטיבי
-        const { error: deleteError } = await supabase
-          .from('services')
-          .delete()
-          .eq('business_id', userData.business_id);
-
-        if (deleteError) throw deleteError;
-
-        // הוספת השירותים החדשים
-        const services = data.services.map(service => ({
-          business_id: userData.business_id,
-          name: service.name,
+        const services = step4.services.map(service => ({
+          business_id: businessId,
+          name: service.name_he,
           name_he: service.name_he,
           price: parseFloat(service.price),
           duration: `${service.duration} minutes`
@@ -191,16 +183,16 @@ export function RegistrationProvider({ children }: RegistrationProviderProps) {
           .insert(services);
 
         if (servicesError) throw servicesError;
-
-        // אם זה השלב האחרון, נעבור לדשבורד
-        navigate('/dashboard');
       }
-    } catch (error: any) {
-      console.error('Error updating step:', error);
-      toast.error(error.message || 'שגיאה בשמירת השלב');
-      throw error;
+
+      toast.success('ההרשמה הושלמה בהצלחה!');
+      cleanup();
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('❌ שגיאה בהרשמה:', err);
+      toast.error(err.message || 'שגיאה בהרשמה');
     } finally {
-      setLoadingStates(prev => ({ ...prev, updatingStep: false }));
+      setLoadingStates(prev => ({ ...prev, completing: false }));
     }
   };
 
@@ -217,37 +209,17 @@ export function RegistrationProvider({ children }: RegistrationProviderProps) {
     switch (state.type) {
       case 'business':
         switch (step) {
-          case 1: {
-            const stepData = data as BusinessRegistrationData['step1'];
-            return !!(stepData?.email && stepData?.password);
-          }
-          case 2: {
-            const stepData = data as BusinessRegistrationData['step2'];
-            return !!(stepData?.name && stepData?.type);
-          }
-          case 3: {
-            const stepData = data as BusinessRegistrationData['step3'];
-            return !!stepData?.hours;
-          }
-          case 4: {
-            const stepData = data as BusinessRegistrationData['step4'];
-            return !!(stepData?.services?.length);
-          }
-          default:
-            return false;
+          case 1: return !!(data.email && data.password && data.name && data.phone);
+          case 2: return !!(data.name && data.type);
+          case 3: return !!data.hours;
+          case 4: return true; // ⬅️ step4 הפך ללא חובה
+          default: return false;
         }
       case 'staff':
         switch (step) {
-          case 1: {
-            const stepData = data as StaffRegistrationData['step1'];
-            return !!(stepData?.email && stepData?.password);
-          }
-          case 2: {
-            const stepData = data as StaffRegistrationData['step2'];
-            return !!(stepData?.name && stepData?.phone);
-          }
-          default:
-            return false;
+          case 1: return !!(data.email && data.password);
+          case 2: return !!(data.name && data.phone);
+          default: return false;
         }
     }
   };
@@ -268,6 +240,8 @@ export function RegistrationProvider({ children }: RegistrationProviderProps) {
       loadingStates,
       draftData,
       updateStep,
+      submitFullRegistration,
+      completeRegistration: submitFullRegistration,
       goToStep,
       isStepValid,
       getStepData,

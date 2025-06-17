@@ -14,6 +14,10 @@ interface RegistrationProgressProps {
 export function RegistrationProgress({ steps }: RegistrationProgressProps) {
   const { state, goToStep } = useRegistration();
 
+  // Prevent rendering if currentStep is out of bounds
+  const isCompleted = state.isCompleted === true;
+  const currentStep = Math.min(state.currentStep, steps.length);
+
   return (
     <nav aria-label="שלבי הרשמה" className="bg-white rounded-2xl shadow-sm p-4">
       <ol className="relative flex items-center justify-between">
@@ -28,10 +32,12 @@ export function RegistrationProgress({ steps }: RegistrationProgressProps) {
           }}
         />
 
-        {steps.map((step) => {
-          const isCompleted = state.completedSteps.includes(step.id);
-          const isCurrent = state.currentStep === step.id;
-          const isClickable = isCompleted || step.id === 1;
+        {!isCompleted ? steps.map((step) => {
+          // Only render steps that exist in the steps array
+          if (step.id > steps.length) return null;
+          const isStepCompleted = state.completedSteps.includes(step.id);
+          const isCurrent = currentStep === step.id;
+          const isClickable = isStepCompleted || step.id === 1;
 
           return (
             <li
@@ -45,7 +51,7 @@ export function RegistrationProgress({ steps }: RegistrationProgressProps) {
               {/* Step Number/Check */}
               <motion.div
                 className={`relative flex h-10 w-10 items-center justify-center rounded-xl border-2 bg-white transition-colors ${
-                  isCompleted
+                  isStepCompleted
                     ? 'border-green-500 bg-green-500 text-bg-green-500'
                     : isCurrent
                     ? 'border-indigo-600 bg-indigo-600 text-bg-indigo-600 shadow-lg shadow-indigo-100'
@@ -54,7 +60,7 @@ export function RegistrationProgress({ steps }: RegistrationProgressProps) {
                 whileHover={isClickable ? { scale: 1.1 } : {}}
                 whileTap={isClickable ? { scale: 0.95 } : {}}
               >
-                {isCompleted ? (
+                {isStepCompleted ? (
                   <Check className="h-5 w-5" />
                 ) : (
                   <span className={`text-sm font-medium ${isCurrent ? 'text-bg-indigo-600' : 'text-bg-indigo-600'}`}>
@@ -65,13 +71,25 @@ export function RegistrationProgress({ steps }: RegistrationProgressProps) {
 
               {/* Step Title */}
               <h3 className={`mt-2 text-sm font-medium transition-colors ${
-                isCurrent ? 'text-indigo-600' : isCompleted ? 'text-green-600' : 'text-gray-500'
+                isCurrent ? 'text-indigo-600' : isStepCompleted ? 'text-green-600' : 'text-gray-500'
               }`}>
                 {step.title}
               </h3>
             </li>
           );
-        })}
+        }) : (
+          // Completion indicator
+          <li className="flex flex-col items-center w-full">
+            <motion.div
+              className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-green-500 bg-green-500 text-white"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1.1 }}
+            >
+              <Check className="h-6 w-6" />
+            </motion.div>
+            <h3 className="mt-2 text-lg font-bold text-green-600">ההרשמה הושלמה!</h3>
+          </li>
+        )}
       </ol>
     </nav>
   );

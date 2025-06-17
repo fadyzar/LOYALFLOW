@@ -18,6 +18,8 @@ export interface BusinessRegistrationData {
   step1?: {
     email: string;
     password: string;
+    name: string;       
+    phone: string;
   };
   step2?: {
     name: string;
@@ -83,4 +85,5 @@ export interface RegistrationContextType {
   getStepData: (step: number) => any;
   completeRegistration: () => Promise<void>;
   cleanup: () => void;
+    submitFullRegistration: () => Promise<void>;
 }
