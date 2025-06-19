@@ -176,10 +176,10 @@ export function StaffDateTimeSelector({
     loadStaffHours();
   }, [selectedStaffId, currentDate, businessId]);
 
-  const isTimeInBreak = (time: Date, breaks: any[]) => {
-    return breaks.some(breakItem => {
-      const [breakStartHours, breakStartMinutes] = breakItem.start_time.split(':').map(Number);
-      const [breakEndHours, breakEndMinutes] = breakItem.end_time.split(':').map(Number);
+  const isTimeInBreak = (time: Date, breaks: any[] = []) => {
+  return breaks.some(breakItem => {
+    const [breakStartHours, breakStartMinutes] = breakItem.start_time?.split(':') || [0, 0];
+    const [breakEndHours, breakEndMinutes] = breakItem.end_time?.split(':') || [0, 0];
       
       const breakStart = new Date(time);
       breakStart.setHours(breakStartHours, breakStartMinutes, 0, 0);
@@ -229,44 +229,50 @@ export function StaffDateTimeSelector({
   };
 
   const getAvailableTimeSlots = (staff: any) => {
-    if (!staff?.workingHours?.is_active) return [];
+  if (
+    !staff?.workingHours?.is_active ||
+    typeof staff?.workingHours?.start_time !== 'string' ||
+    typeof staff?.workingHours?.end_time !== 'string'
+  ) {
+    return [];
+  }
 
-    const slots: { time: Date; available: boolean; isBreak: boolean }[] = [];
-    const processedTimes = new Set<string>();
-    
-    const [startHours, startMinutes] = staff.workingHours.start_time.split(':').map(Number);
-    const [endHours, endMinutes] = staff.workingHours.end_time.split(':').map(Number);
-    
-    let currentTime = new Date(currentDate);
-    currentTime.setHours(startHours, startMinutes, 0, 0);
-    
-    const endTime = new Date(currentDate);
-    endTime.setHours(endHours, endMinutes, 0, 0);
+  const slots: { time: Date; available: boolean; isBreak: boolean }[] = [];
+  const processedTimes = new Set<string>();
 
-    while (currentTime <= endTime) {
-      const timeStr = format(currentTime, 'HH:mm');
-      
-      if (!processedTimes.has(timeStr)) {
-        const isBreakTime = isTimeInBreak(currentTime, staff.breaks || []);
-        const isAvailable = isTimeAvailable(currentTime, staff);
-        const appointmentEnd = addMinutes(currentTime, serviceDurationMinutes);
-        const hasEnoughTime = appointmentEnd <= endTime;
+  const [startHours, startMinutes] = staff.workingHours.start_time.split(':').map(Number);
+  const [endHours, endMinutes] = staff.workingHours.end_time.split(':').map(Number);
 
-        if ((isAvailable || isBreakTime) && hasEnoughTime) {
-          slots.push({
-            time: new Date(currentTime),
-            available: isAvailable,
-            isBreak: isBreakTime
-          });
-          processedTimes.add(timeStr);
-        }
+  let currentTime = new Date(currentDate);
+  currentTime.setHours(startHours, startMinutes, 0, 0);
+
+  const endTime = new Date(currentDate);
+  endTime.setHours(endHours, endMinutes, 0, 0);
+
+  while (currentTime <= endTime) {
+    const timeStr = format(currentTime, 'HH:mm');
+
+    if (!processedTimes.has(timeStr)) {
+      const isBreakTime = isTimeInBreak(currentTime, staff.breaks || []);
+      const isAvailable = isTimeAvailable(currentTime, staff);
+      const appointmentEnd = addMinutes(currentTime, serviceDurationMinutes);
+      const hasEnoughTime = appointmentEnd <= endTime;
+
+      if ((isAvailable || isBreakTime) && hasEnoughTime) {
+        slots.push({
+          time: new Date(currentTime),
+          available: isAvailable,
+          isBreak: isBreakTime
+        });
+        processedTimes.add(timeStr);
       }
-
-      currentTime = addMinutes(currentTime, 20);
     }
 
-    return slots;
-  };
+    currentTime = addMinutes(currentTime, 20);
+  }
+
+  return slots;
+};
 
   // סינון שעות שעברו
   const filterPassedTimes = (slots: { time: Date; available: boolean; isBreak: boolean }[]) => {

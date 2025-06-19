@@ -170,14 +170,26 @@ function CustomerDetails() {
   
   // בדיקה אם תכונת תכנית הנאמנות זמינה במנוי וגם מופעלת בהגדרות
   const loyaltyEnabled = isFeatureAvailable('loyalty_program') && isLoyaltyEnabled;
+  
+useEffect(() => {
+    if (id === 'new') {
+      navigate('/customers', { replace: true });
+    }
+  }, [id]);
 
+  if (id === 'new') return null;
   useEffect(() => {
     loadCustomer();
     loadBusinessSettings();
   }, [id]);
 
   const loadCustomer = async () => {
-    if (!id) return;
+   if (!id || id === 'new') {
+  
+  return;
+}
+
+
 
     try {
       setLoading(true);
@@ -251,18 +263,21 @@ function CustomerDetails() {
   };
 
   const loadBusinessSettings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('businesses')
-        .select('settings')
-        .single();
+  try {
+    if (!customer?.business_id) return;
 
-      if (error) throw error;
-      setBusinessSettings(data.settings);
-    } catch (error) {
-      console.error('Error loading business settings:', error);
-    }
-  };
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('settings')
+      .eq('id', customer.business_id)
+      .single(); // עכשיו זה יחזיר רק את העסק של הלקוח הזה
+
+    if (error) throw error;
+    setBusinessSettings(data.settings);
+  } catch (error) {
+    console.error('Error loading business settings:', error);
+  }
+};
 
   const fetchLastAppointment = async (customerId: string) => {
     try {
@@ -407,17 +422,21 @@ function CustomerDetails() {
     );
   }
 
-  if (!customer) {
-    return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-500">לא נמצא לקוח</p>
-        <Link
-          to="/customers"
-          className="text-indigo-600 hover:text-indigo-700"
-        >
-          חזרה לרשימת הלקוחות
-        </Link>
-      </div>
+  if (id === 'new') {
+  return null; // או מודאל יצירת לקוח, או ריק
+}
+
+if (!customer) {
+  return (
+    <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
+      <p className="text-gray-500">לא נמצא לקוח</p>
+      <Link
+        to="/customers"
+        className="text-indigo-600 hover:text-indigo-700"
+      >
+        חזרה לרשימת הלקוחות
+      </Link>
+    </div>
     );
   }
 

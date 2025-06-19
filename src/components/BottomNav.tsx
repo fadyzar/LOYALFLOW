@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLocation, Link } from 'react-router-dom';
-import { Calendar, Users, Settings, Home, PlusCircle, Clock, FileText } from 'lucide-react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { Calendar, Users, Settings, Home, PlusCircle, FileText } from 'lucide-react';
 import { useSubscription } from '../hooks/useSubscription';
 import ChargeCustomerFlow from './ChargeCustomerFlow';
 import { useAuth } from '../contexts/auth/hooks';
@@ -17,25 +17,22 @@ const navItems = [
 
 const fabItems = [
   { icon: Calendar, label: 'תור חדש', path: '/appointments/new', color: 'bg-indigo-600', requiredFeature: null, type: 'link' },
-  { icon: Users, label: 'לקוח חדש', path: '/customers/new', color: 'bg-emerald-600', requiredFeature: null, type: 'link' },
+  { icon: Users, label: 'לקוח חדש', color: 'bg-emerald-600', requiredFeature: null, type: 'navigate', navigateTo: '/customers', state: { openNewCustomerModal: true } },
   { icon: FileText, label: 'חייב לקוח', color: 'bg-purple-600', requiredFeature: null, type: 'charge' },
 ];
 
 function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
   const { isFeatureAvailable } = useSubscription();
   const [showChargeDialog, setShowChargeDialog] = useState(false);
   const { business } = useAuth();
 
-  // בדיקה אם אנחנו במסך משני של הגדרות
   const isSettingsSubpage = location.pathname.startsWith('/settings/');
-  // בדיקה אם אנחנו במסך משני של לקוחות
   const isCustomersSubpage = location.pathname.startsWith('/customers/');
-  // בדיקה אם אנחנו במסך משני של יומן
   const isAppointmentsSubpage = location.pathname.startsWith('/appointments/');
 
-  // פילטור פעולות מהירות לפי זמינות תכונות
   const availableFabItems = fabItems.filter(item => 
     item.requiredFeature === null || isFeatureAvailable(item.requiredFeature)
   );
@@ -49,7 +46,6 @@ function BottomNav() {
       <div className="max-w-lg mx-auto px-4">
         <div className="flex justify-between items-center h-20">
           {navItems.map((item) => {
-            // בדיקה אם הלינק הנוכחי פעיל
             const isActive = 
               location.pathname === item.path ||
               (isSettingsSubpage && item.path === '/settings') ||
@@ -62,9 +58,7 @@ function BottomNav() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`relative flex flex-col items-center justify-center flex-1 ${
-                  item.primary ? '-mt-8' : ''
-                }`}
+                className={`relative flex flex-col items-center justify-center flex-1 ${item.primary ? '-mt-8' : ''}`}
               >
                 {item.primary ? (
                   <motion.div
@@ -83,9 +77,7 @@ function BottomNav() {
                   <motion.div
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`flex flex-col items-center ${
-                      isActive ? 'text-indigo-600' : 'text-gray-500'
-                    }`}
+                    className={`flex flex-col items-center ${isActive ? 'text-indigo-600' : 'text-gray-500'}`}
                   >
                     <Icon className="h-6 w-6" />
                     <span className="text-xs mt-1">{item.label}</span>
@@ -103,11 +95,9 @@ function BottomNav() {
         </div>
       </div>
 
-      {/* FAB Menu */}
       <AnimatePresence>
         {showFabMenu && availableFabItems.length > 0 && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -116,7 +106,6 @@ function BottomNav() {
               onClick={() => setShowFabMenu(false)}
             />
 
-            {/* Menu Items */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -128,26 +117,8 @@ function BottomNav() {
                   <motion.div
                     key={item.label}
                     initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                    animate={{ 
-                      opacity: 1, 
-                      scale: 1,
-                      y: 0,
-                      transition: { 
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 20,
-                        delay: index * 0.1 
-                      } 
-                    }}
-                    exit={{ 
-                      opacity: 0,
-                      scale: 0.8,
-                      y: 20,
-                      transition: { 
-                        duration: 0.2,
-                        delay: (availableFabItems.length - 1 - index) * 0.05 
-                      }
-                    }}
+                    animate={{ opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 20, delay: index * 0.1 } }}
+                    exit={{ opacity: 0, scale: 0.8, y: 20, transition: { duration: 0.2, delay: (availableFabItems.length - 1 - index) * 0.05 } }}
                   >
                     {item.type === 'link' && item.path ? (
                       <Link
@@ -164,6 +135,18 @@ function BottomNav() {
                           <span className="font-medium">{item.label}</span>
                         </motion.div>
                       </Link>
+                    ) : item.type === 'navigate' ? (
+                      <button
+                        type="button"
+                        className={`flex items-center gap-3 w-full ${item.color} text-white p-4 rounded-2xl shadow-sm font-medium justify-center`}
+                        onClick={() => {
+                          setShowFabMenu(false);
+                          navigate(item.navigateTo, { state: item.state });
+                        }}
+                      >
+                        <item.icon className="h-6 w-6" />
+                        <span>{item.label}</span>
+                      </button>
                     ) : (
                       <button
                         type="button"
@@ -185,7 +168,6 @@ function BottomNav() {
         )}
       </AnimatePresence>
 
-      {/* Dialogs are now rendered outside the BottomNav via the Portal component */}
       {showChargeDialog && business?.id && (
         <Portal>
           <ChargeCustomerFlow
@@ -207,7 +189,6 @@ function BottomNav() {
   );
 }
 
-// Portal component to render content outside the normal DOM hierarchy
 function Portal({ children }: { children: React.ReactNode }) {
   const portalRoot = document.getElementById('portal-root') || document.body;
   return ReactDOM.createPortal(children, portalRoot);

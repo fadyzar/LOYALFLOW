@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Routes, Route, useNavigate, Link } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Plus, Search, Filter, Star, Diamond, Ban, Upload, Download, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/auth/hooks';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +20,7 @@ type Customer = Database['public']['Tables']['customers']['Row'];
 
 function Customers() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isFeatureAvailable } = useSubscription();
   const { isLoyaltyEnabled } = useLoyaltySettings();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -31,12 +32,19 @@ function Customers() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [importModal, setImportModal] = useState(false);
   const [exportModal, setExportModal] = useState(false);
-  
+
   const loyaltyEnabled = isFeatureAvailable('loyalty_program') && isLoyaltyEnabled;
 
   useEffect(() => {
     loadBusinessData();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.openNewCustomerModal) {
+      setEditingCustomer(null);
+      setShowForm(true);
+    }
+  }, [location.state]);
 
   const loadBusinessData = async () => {
     try {

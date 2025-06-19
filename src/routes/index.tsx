@@ -33,18 +33,25 @@ const FeatureProtectedRoute = ({
   fallbackPath?: string;
 }) => {
   const { isFeatureAvailable } = useSubscription();
-  
-  // אם זה קוד תכונה של תוכנית נאמנות, נחזיר true כדי לאפשר גישה
+
   if (featureCode === 'loyalty_program') {
     return <>{children}</>;
   }
-  
+
   if (!isFeatureAvailable(featureCode)) {
     return <Navigate to={fallbackPath} replace />;
   }
-  
+
   return <>{children}</>;
 };
+
+// פתרון בעיית onClose/onSuccess - קומפוננטת עטיפה
+const NewAppointmentRoute = () => (
+  <NewAppointmentFlow 
+    onClose={() => window.history.back()} 
+    onSuccess={() => window.history.back()} 
+  />
+);
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -96,7 +103,7 @@ function AppRoutes() {
       />
       <Route
         path="/appointments/new"
-        element={user ? <NewAppointmentFlow onClose={() => window.history.back()} onSuccess={() => window.history.back()} /> : <Navigate to="/login" />}
+        element={user ? <NewAppointmentRoute /> : <Navigate to="/login" />}
       />
       <Route
         path="/customers/*"
