@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Mic, StopCircle, Calendar, Clock, Ban, History, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { requestMicrophonePermission, startRecording } from '../../utils/microphone';
+import { useSubscription } from '../../hooks/useSubscription';
+
 import toast from 'react-hot-toast';
 
 interface CustomerAIChatProps {
@@ -48,6 +50,7 @@ const QUICK_REPLIES = [
 ];
 
 export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
+  const { trialAvailable } = useSubscription();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -397,7 +400,7 @@ export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
                 <h2 className="text-lg font-semibold">לוליטה</h2>
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-gray-500">העוזרת החכמה שלך 🤖✨</p>
-                  {businessTokensInfo && !businessTokensInfo.available && (
+                 {businessTokensInfo && !businessTokensInfo.available && !trialAvailable && (
                     <div className="flex items-center gap-1 text-xs">
                       <AlertCircle className="h-3 w-3 text-red-500" />
                       <span className="text-red-600">

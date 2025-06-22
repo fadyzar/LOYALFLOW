@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, addDays, isSameDay, isAfter, startOfDay, endOfDay, addHours, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { useSubscription } from '../../hooks/useSubscription';
 import { 
   Calendar, 
   MessageSquare, 
@@ -73,7 +74,11 @@ const QUICK_REPLIES = [
   'עדכן את שעות הפעילות שלי להיום',
 ];
 
+
+
 function Dashboard() {
+  const { trialAvailable } = useSubscription();
+  const { isTrialStillValid } = useSubscription();
   const { user, business, signOut, isDashboardPage } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -97,7 +102,8 @@ function Dashboard() {
   const [appointmentsChannel, setAppointmentsChannel] = useState<any>(null);
   const [tokensChannel, setTokensChannel] = useState<any>(null);
   const canRecord = window.isSecureContext && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
-  const blocked = isDashboardPage && tokensInfo?.available === false;
+  const blocked = isDashboardPage && tokensInfo?.available === false && !trialAvailable;
+
 
   // Function to scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -518,7 +524,7 @@ function Dashboard() {
     console.log('Business ID:', businessId);
 
     // Check if business has enough tokens only if we're on the dashboard
-    if (isDashboardPage && tokensInfo && !tokensInfo.available) {
+    if (isDashboardPage && tokensInfo && !tokensInfo.available && !trialAvailable) {
       toast.error('אין אפשרות לשימוש בבינה מלאכותית בחבילה הנוכחית');
       return;
     }
@@ -768,25 +774,26 @@ function Dashboard() {
                   <h2 className="font-semibold">צ'אט עם לוליטה AI</h2>
                   {tokensInfo && (
                     <div className="flex items-center gap-1 text-xs">
-                      {tokensInfo.available ? (
-                        <>
-                          <AlertCircle className="h-3 w-3 text-indigo-500" />
-                          <span className="text-indigo-600">
-                            {tokensInfo.display_limit === null ? (
-                              'טוקנים ללא הגבלה'
-                            ) : (
-                              `נותרו ${tokensInfo.display_remaining} / ${tokensInfo.display_limit} טוקנים`
-                            )}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-3 w-3 text-red-500" />
-                          <span className="text-red-600">
-                            שירות לא זמין בחבילה הנוכחית
-                          </span>
-                        </>
-                      )}
+                {tokensInfo.available || trialAvailable ? (
+  <>
+    <AlertCircle className="h-3 w-3 text-indigo-500" />
+    <span className="text-indigo-600">
+      {tokensInfo.display_limit === null ? (
+        'טוקנים ללא הגבלה'
+      ) : (
+        `נותרו ${tokensInfo.display_remaining} / ${tokensInfo.display_limit} טוקנים`
+      )}
+    </span>
+  </>
+) : (
+  <>
+    <AlertCircle className="h-3 w-3 text-red-500" />
+    <span className="text-red-600">
+      שירות לא זמין בחבילה הנוכחית
+    </span>
+  </>
+)}
+
                     </div>
                   )}
                 </div>

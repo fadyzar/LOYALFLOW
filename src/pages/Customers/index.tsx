@@ -15,6 +15,7 @@ import { ExportCustomersModal } from './components/ExportCustomersModal';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useLoyaltySettings } from '../../hooks/useLoyaltySettings';
 import toast from 'react-hot-toast';
+import { getFriendlyErrorMessage } from '../../utils/errorMessages';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 
@@ -127,9 +128,10 @@ function Customers() {
       setEditingCustomer(null);
       loadCustomers(businessId);
     } catch (error: any) {
-      console.error('Error saving customer:', error);
-      toast.error(error.message || (editingCustomer ? 'שגיאה בעדכון הלקוח' : 'שגיאה בהוספת הלקוח'));
-    }
+  console.error('Error saving customer:', error);
+  const friendly = getFriendlyErrorMessage(error.message);
+  toast.error(friendly);
+}
   };
 
   const filteredCustomers = customers.filter(customer => {

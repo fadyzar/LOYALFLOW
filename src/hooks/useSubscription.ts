@@ -36,18 +36,16 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
 
   useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
+    if (!user?.id) return;
 
     const loadSubscription = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // קבלת מזהה העסק
         let businessId = business?.id;
         if (!businessId) {
           const { data: userData, error: userError } = await supabase
@@ -64,7 +62,6 @@ export function useSubscription() {
           throw new Error('לא נמצא עסק מקושר');
         }
 
-        // קבלת פרטי המנוי
         const { data, error } = await supabase
           .rpc('get_business_subscription', {
             p_business_id: businessId
@@ -82,53 +79,65 @@ export function useSubscription() {
 
     loadSubscription();
   }, [user?.id, business?.id]);
+ 
 
-  // פונקציה לבדיקה אם תכונה זמינה בחבילה הנוכחית
+  // האם המשתמש עדיין בתקופת ניסיון לפי תאריך יצירת המשתמש
+  const trialAvailable = (() => {
+    if (!user?.created_at) return false;
+    const createdAt = new Date(user.created_at);
+    const now = new Date();
+    const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    return daysDiff <= 14;
+  })();
+
+  // האם עדיין תקף לפי התחלת החבילה
+  const isTrialStillValid = (): boolean => {
+    const periodStart = subscription?.subscription?.current_period_start;
+    const planCode = subscription?.plan?.code;
+
+    if (!periodStart || planCode !== 'free') return false;
+
+    const start = new Date(periodStart);
+    const now = new Date();
+    const diffInDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+    return diffInDays < 14;
+  };
+
   const isFeatureAvailable = (featureCode: string): boolean => {
-    // אם זה קוד תכונה של תוכנית נאמנות, נחזיר true כדי לאפשר גישה
-    if (featureCode === 'loyalty_program') {
-      return true;
-    }
-    
+    if (featureCode === 'loyalty_program') return true;
+    if (featureCode === 'ai_chat' && trialAvailable) return true;
+
     if (!subscription || !subscription.has_subscription) return false;
     return subscription.plan?.features[featureCode] === true;
   };
 
-  // פונקציה לקבלת מגבלת תכונה
   const getFeatureLimit = (featureCode: string): number | null => {
     if (!subscription || !subscription.has_subscription) return 0;
     return subscription.plan?.limits[featureCode] || null;
   };
 
-  // פונקציה לקבלת שימוש נוכחי בתכונה
   const getFeatureUsage = (featureCode: string): number => {
     if (!subscription || !subscription.has_subscription) return 0;
     return subscription.usage?.[featureCode] || 0;
   };
 
-  // פונקציה לקבלת יתרה נותרת לתכונה
   const getFeatureRemaining = (featureCode: string): number | null => {
     if (!subscription || !subscription.has_subscription) return 0;
     const limit = getFeatureLimit(featureCode);
     const usage = getFeatureUsage(featureCode);
-    
-    if (limit === null) return null; // ללא הגבלה
+    if (limit === null) return null;
     return Math.max(0, limit - usage);
   };
 
-  // פונקציה לבדיקה אם יש מספיק יתרה לפעולה
   const hasEnoughForAction = async (featureCode: string, amount: number): Promise<boolean> => {
     try {
       if (!subscription || !subscription.has_subscription) return false;
-      
-      // אם התכונה לא זמינה בכלל
       if (!isFeatureAvailable(featureCode)) return false;
-      
-      // אם אין מגבלה, תמיד יש מספיק
+
       const limit = getFeatureLimit(featureCode);
       if (limit === null) return true;
-      
-      // בדיקה מול השרת (במקרה של טוקנים)
+
       if (featureCode === 'ai_tokens') {
         const { data, error } = await supabase
           .rpc('check_tokens_for_action', {
@@ -139,8 +148,7 @@ export function useSubscription() {
         if (error) throw error;
         return data.has_enough_tokens;
       }
-      
-      // בדיקה רגילה
+
       const remaining = getFeatureRemaining(featureCode);
       return remaining === null || remaining >= amount;
     } catch (error) {
@@ -160,6 +168,8 @@ export function useSubscription() {
     getFeatureLimit,
     getFeatureUsage,
     getFeatureRemaining,
-    hasEnoughForAction
+    hasEnoughForAction,
+    trialAvailable,
+    isTrialStillValid
   };
 }
