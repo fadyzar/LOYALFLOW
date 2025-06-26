@@ -88,6 +88,7 @@ interface PendingChanges {
 }
 
 export function AppointmentDetails({ appointment, onClose, onUpdate }: AppointmentDetailsProps) {
+    // if (!appointment) return null; // ✅ הגנה פשוטה
   const { user } = useAuth();
   const { updateAppointmentStatus, loading: statusLoading } = useAppointmentStatus();
   const [loading, setLoading] = useState(false);

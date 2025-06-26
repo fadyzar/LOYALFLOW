@@ -226,11 +226,12 @@ export function CustomerCard({ customer, onEdit }: CustomerCardProps) {
 
       {/* Metadata or Tags */}
       {customer.metadata?.blocked && (
-        <div className="mt-3 flex items-center gap-2 bg-red-50 text-red-600 p-2 rounded-lg text-xs">
-          <User className="h-3 w-3" />
-          <span>לקוח חסום</span>
-        </div>
-      )}
+  <div className="mt-3 flex items-center gap-2 bg-red-50 text-red-600 p-2 rounded-lg text-xs">
+    <User className="h-3 w-3" />
+    <span>לקוח חסום</span>
+  </div>
+)}
+
       
       {customer.metadata?.notes && (
         <div className="mt-3 text-sm text-gray-500 italic">

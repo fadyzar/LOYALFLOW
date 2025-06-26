@@ -20,18 +20,20 @@ interface ChargeCustomerParams {
 
 export async function chargeCustomer(params: ChargeCustomerParams) {
   // 1. שליפת הגדרות מסוף תשלום פעיל של העסק
-  const { data: terminal, error: terminalError } = await supabase
+  const { data: payment_terminals, error: terminalError } = await supabase
     .from('payment_terminals')
     .select('*')
     .eq('business_id', params.businessId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
+
+  const terminal = payment_terminals?.[0]; // ✅ נשלפת שורה בודדת
+  console.log('terminal:', terminal);
 
   if (terminalError) {
     console.error('Error fetching payment terminal:', terminalError);
-    throw new Error('לא נמצא מסוף פעיל לעסק זה');
+    throw new Error('שגיאה בשליפת מסוף התשלום');
   }
 
   if (!terminal) {
@@ -81,7 +83,7 @@ export async function chargeCustomer(params: ChargeCustomerParams) {
           ],
         },
       },
-      sandbox: true, // או false לפרודקשן
+      sandbox: terminal.sandbox_mode ?? false,
     });
 
     if (!result.success) throw new Error(result.error || 'החיוב נכשל, נסה שוב.');
@@ -89,7 +91,7 @@ export async function chargeCustomer(params: ChargeCustomerParams) {
     // שמירת העסקה ב-DB (כבר מתבצע בפונקציה)
     return result;
   } else {
-    // ביט/מזומן/העברה בנקאית: הפקת חשבונית בלבד
+    // ביט / מזומן / העברה בנקאית – רק הפקת חשבונית
     const invoice = await createInvoiceOnly({
       businessId: params.businessId,
       customerId: params.customerId,
@@ -118,4 +120,4 @@ export async function chargeCustomer(params: ChargeCustomerParams) {
 
     return invoice;
   }
-} 
+}

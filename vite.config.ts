@@ -96,6 +96,7 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     open: true,
+    
     hmr: {
       timeout: 5000
     },
@@ -116,7 +117,10 @@ export default defineConfig({
         secure: false
       }
     },
-    allowedHosts: ['b8f9-38-56-233-89.ngrok-free.app']
+    allowedHosts: [
+  'b8f9-38-56-233-89.ngrok-free.app',
+  'tolerant-earwig-partially.ngrok-free.app'
+],
   },
   build: {
     outDir: 'dist',

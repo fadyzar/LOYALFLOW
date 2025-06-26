@@ -85,7 +85,7 @@ export async function createInvoiceOnly(params: CreateInvoiceOnlyParams) {
 
   // Step 3: Call API (sandbox by default)
   try {
-    const endpoint = 'https://gateway21.pelecard.biz/SandboxServices/DocumentCreate';
+    const endpoint = 'https://gateway21.pelecard.biz/services/DebitRegularType';
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

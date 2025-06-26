@@ -3,8 +3,8 @@ import CryptoJS from 'crypto-js';
 
 // Pelecard endpoints
 const PELECARD_BASE = {
-  production: 'https://gateway21.pelecard.biz/services',
-  sandbox: 'https://gateway21.pelecard.biz/SandboxServices',
+  production: 'https://gateway20.pelecard.biz/services',
+  sandbox: 'https://gateway21.pelecard.biz/services/DebitRegularType',
 };
 
 const ENCRYPTION_KEY = 'change-this-key-in-production';
@@ -116,6 +116,8 @@ export async function chargeCustomerWithCloudTerminal(params: {
       customerPhone: payperParams?.DataPayper?.customer_phone || '',
       customerAddress: payperParams?.DataPayper?.customer_address || ''
     };
+
+     console.log("📦 Request to Edge Function (Pelecard):", JSON.stringify(requestBody, null, 2));
 
     // קריאה לEdge Function
     const response = await fetch('https://nkuqcyelxgyihrxyvitb.supabase.co/functions/v1/charge-customer', {

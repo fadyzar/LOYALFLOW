@@ -9,6 +9,7 @@ import { useTimeSlots } from '../hooks/useTimeSlots';
 import { supabase } from '../../../../lib/supabase';
 import { useAuth } from '../../../../contexts/auth/hooks';
 import toast from 'react-hot-toast';
+import { useLongPress } from '../../../../hooks/useLongPress';
 
 interface AppointmentsGridProps {
   staff: Staff[];
@@ -18,6 +19,7 @@ interface AppointmentsGridProps {
   onAppointmentClick: (appointment: Appointment) => void;
   onTimeSlotClick?: (date: Date, staffId: string) => void;
 }
+
 
 const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, AppointmentsGridProps>(
   function AppointmentsGrid({ staff, staffHours, appointments, selectedDate, onAppointmentClick, onTimeSlotClick }, ref) {
@@ -31,40 +33,49 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
     const dragStartRef = useRef<{ y: number; startTime: Date | null; endTime: Date | null; gridTop: number }>({ y: 0, startTime: null, endTime: null, gridTop: 0 });
     const gridRef = useRef<HTMLDivElement>(null);
     const constraintsRef = useRef<HTMLDivElement>(null);
+    const [isDraggingEnabled, setDraggingEnabled] = useState(false);
 
-    const appointmentsByStaff = useMemo(() => {
+     const appointmentsByStaff = useMemo(() => {
       const map = new Map<string, Appointment[]>();
-      
       appointments.forEach(apt => {
         if (!map.has(apt.staff_id)) {
           map.set(apt.staff_id, []);
         }
         map.get(apt.staff_id)?.push(apt);
       });
-      
       return map;
     }, [appointments]);
 
-    const calculateDynamicPosition = useCallback((startTime: string, endTime: string, draggedEnd?: string) => {
+    useEffect(() => {
+  if (isDraggingEnabled) {
+    document.body.style.overflow = 'hidden';
+    navigator.vibrate?.(50); // רטט קטן
+  } else {
+    document.body.style.overflow = '';
+  }
+}, [isDraggingEnabled]);
+
+    const longPressHandlers = useLongPress(() => {
+  console.log('⏱ לחיצה ארוכה הופעלה');
+  setDraggingEnabled(true);
+}, 400);
+
+
+   const calculateDynamicPosition = useCallback((startTime: string, endTime: string, draggedEnd?: string) => {
       const startDate = parseISO(startTime);
       let endDate = parseISO(endTime);
-      
       if (draggedEnd) {
         const [hours, minutes] = draggedEnd.split(':').map(Number);
         endDate = new Date(endDate);
         endDate.setHours(hours, minutes, 0, 0);
       }
-      
       const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
       const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
-      
       const heightInMinutes = endMinutes - startMinutes;
       const heightInHours = heightInMinutes / 60;
       const heightInPixels = Math.max(Math.round(heightInHours * CELL_HEIGHT), 24);
-
       const startInHours = startMinutes / 60;
       const topInPixels = Math.round(startInHours * CELL_HEIGHT);
-
       return {
         top: `${topInPixels}px`,
         height: `${heightInPixels}px`,
@@ -292,20 +303,23 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
         setIsResizing(false);
         setDragType(null);
         dragStartRef.current = { y: 0, startTime: null, endTime: null, gridTop: 0 };
+        setDraggingEnabled(false);
       }
     };
 
     return (
       <div 
-        ref={ref}
+        // ref={ref}
+        ref={gridRef}
         className="flex-1 overflow-y-auto scrollbar-none overscroll-none h-full"
-        style={{ 
-          scrollBehavior: 'smooth',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'none',
-          height: '100%'
-        }}
-      >
+        
+      style={{ 
+      scrollBehavior: 'smooth',
+      WebkitOverflowScrolling: 'touch',
+      overscrollBehavior: 'none',
+      height: '100%'
+   }}
+>
         <div 
           ref={constraintsRef}
           className="relative w-full"
@@ -350,10 +364,11 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                       return (
                         <motion.div
                           key={apt.id}
+                          {...longPressHandlers} 
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           whileHover={{ scale: 1.02, translateZ: 0 }}
-                          drag="y"
+                          drag={isDraggingEnabled ? "y" : false}
                           dragMomentum={false}
                           dragElastic={0}
                           dragConstraints={constraintsRef}
@@ -364,11 +379,11 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                             e.stopPropagation();
                             onAppointmentClick(apt);
                           }}
-                          className={`absolute inset-x-1 p-2 rounded-lg ${
-                            isResizing ? 'cursor-ns-resize' : 'cursor-move'
-                          } ${
-                            getStatusColor(apt.status, Boolean(apt.metadata?.paid), Boolean(apt.metadata?.invoice_id))
-                          }`}
+                      className={`absolute inset-x-1 p-2 rounded-lg
+  ${isResizing ? 'cursor-ns-resize' : 'cursor-move'}
+  ${getStatusColor(apt.status, Boolean(apt.metadata?.paid), Boolean(apt.metadata?.invoice_id))}
+  ${isBeingDragged && isDraggingEnabled ? 'ring-2 ring-blue-500 bg-blue-50 shadow-lg' : ''}
+`}
                           style={{
                             ...position,
                             touchAction: 'none',

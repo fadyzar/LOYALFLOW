@@ -4,8 +4,8 @@ import * as CryptoJS from 'https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/+esm'
 
 // Pelecard endpoints
 const PELECARD_BASE = {
-  production: 'https://gateway21.pelecard.biz/services',
-  sandbox: 'https://gateway21.pelecard.biz/SandboxServices',
+  production: 'https://gateway20.pelecard.biz/services',
+  sandbox: 'https://gateway21.pelecard.biz/services/DebitRegularType',
 }
 
 const ENCRYPTION_KEY = 'change-this-key-in-production'
@@ -105,171 +105,96 @@ serve(async (req) => {
 
     // 5. טיפול לפי סוג תשלום
     if (paymentMethod === 'credit_card') {
-      // חיוב בכרטיס אשראי + הפקת חשבונית
-      
-      // 5.1 StartTransaction
-      const startUrl = `${PELECARD_BASE.sandbox}/StartTransaction`
-      const startBody = {
-        terminalNumber: terminal.pelecard_terminal_number,
-        user: terminal.pelecard_user,
-        password: decryptedPassword,
-        shopNumber: terminal.pelecard_shop_number || '001',
-        amount: totalAmount.toString(),
-        currency: '1',
-        payments: payments.toString(),
-        reference: appointmentId || Date.now().toString(),
-      }
-      
-      let startRes, startJson
-      try {
-        startRes = await fetch(startUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(startBody),
-        })
-        startJson = await startRes.json()
-      } catch (err) {
-        await saveTransactionResult({
-          businessId,
-          customerId,
-          appointmentId,
-          amount: totalAmount,
-          currency: 1,
-          status: 'error',
-          errorMessage: 'שגיאת תקשורת לשרת פלאכארד (StartTransaction)',
-        })
-        
-        return new Response(
-          JSON.stringify({ success: false, error: 'שגיאת תקשורת לשרת פלאכארד (StartTransaction)' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
+  const debitUrl = `${PELECARD_BASE.sandbox}`
 
-      if (startJson.StatusCode !== '000' || !startJson.intIn) {
-        await saveTransactionResult({
-          businessId,
-          customerId,
-          appointmentId,
-          amount: totalAmount,
-          currency: 1,
-          status: 'error',
-          errorMessage: startJson.ErrorMessage || 'התחלת עסקה נכשלה',
-        })
-        
-        return new Response(
-          JSON.stringify({ success: false, error: startJson.ErrorMessage || 'התחלת עסקה נכשלה' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
+  const debitBody = {
+    terminalNumber: terminal.pelecard_terminal_number,
+    user: terminal.pelecard_user,
+    password: decryptedPassword,
+    shopNumber: terminal.pelecard_shop_number || '001',
+    creditCard: '4580458000004580', // כרטיס לבדיקה
+    creditCardDateMmYy: '1226',
+    cvv2: '123',
+    total: totalAmount.toString(),
+    currency: '1',
+    paramX: 'לבדיקה בלבד',
+  }
 
-      // 5.2 DebitByIntIn
-      const debitUrl = `${PELECARD_BASE.sandbox}/DebitByIntIn`
-      const debitBody = {
-        terminalNumber: terminal.pelecard_terminal_number,
-        user: terminal.pelecard_user,
-        password: decryptedPassword,
-        shopNumber: terminal.pelecard_shop_number || '001',
-        intIn: startJson.intIn,
-        PayperParameters: {
-          typeDocument: 'Invoice-Receipt',
-          DataPayper: {
-            customer_name: customerName,
-            customer_mail: customerEmail,
-            customer_phone: customerPhone,
-            customer_address: customerAddress,
-            invoice_lines: [
-              {
-                description: serviceDescription,
-                quantity: '1',
-                price_per_unit: totalAmount.toString(),
-              },
-            ],
-          },
-        },
-      }
-      
-      let debitRes, debitJson
-      try {
-        debitRes = await fetch(debitUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(debitBody),
-        })
-        debitJson = await debitRes.json()
-      } catch (err) {
-        await saveTransactionResult({
-          businessId,
-          customerId,
-          appointmentId,
-          amount: totalAmount,
-          currency: 1,
-          status: 'error',
-          errorMessage: 'שגיאת תקשורת לשרת פלאכארד (DebitByIntIn)',
-        })
-        
-        return new Response(
-          JSON.stringify({ success: false, error: 'שגיאת תקשורת לשרת פלאכארד (DebitByIntIn)' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
+  try {
+    console.log('📤 DebitRegularType Body:', debitBody)
+    const res = await fetch(debitUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(debitBody),
+    })
 
-      // טיפול בתשובה של פלאכארד
-      if (debitJson.StatusCode === '000' || debitJson.StatusCode === '001') {
-        await saveTransactionResult({
-          businessId,
-          customerId,
-          appointmentId,
-          pelecardTransactionId: debitJson.PelecardTransactionId,
-          approvalCode: debitJson.DebitApproveNumber,
-          amount: totalAmount,
-          currency: 1,
-          invoiceLink: debitJson.InvoiceLink,
-          status: 'success',
-          errorMessage: debitJson.ErrorMessage,
-        })
-        
-        return new Response(
-          JSON.stringify({
-            success: true,
-            transactionId: debitJson.PelecardTransactionId,
-            approvalCode: debitJson.DebitApproveNumber,
-            invoiceLink: debitJson.InvoiceLink,
-            message: debitJson.ErrorMessage,
-            raw: debitJson,
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
-      } else {
-        // טיפול בשגיאות נפוצות
-        let userMessage = 'העסקה נכשלה. נסה שוב.'
-        switch (debitJson.StatusCode) {
-          case '102': userMessage = 'הכרטיס נדחה. נסה כרטיס אחר.'; break
-          case '103': userMessage = 'כרטיס שפג תוקפו. נסה אחר.'; break
-          case '104': userMessage = 'אין מספיק מסגרת בכרטיס.'; break
-          case '106': userMessage = 'הכרטיס חסום. נסה אחר.'; break
-          case '110': userMessage = 'שגיאת תקשורת. נסה שוב.'; break
-          case '200':
-          case '900':
-          case '999': userMessage = 'תקלה זמנית. נסה שוב בעוד רגע.'; break
-          default: userMessage = debitJson.ErrorMessage || userMessage
-        }
-        
-        await saveTransactionResult({
-          businessId,
-          customerId,
-          appointmentId,
-          amount: totalAmount,
-          currency: 1,
-          status: 'error',
-          errorMessage: debitJson.ErrorMessage || userMessage,
-        })
-        
-        return new Response(
-          JSON.stringify({ success: false, error: userMessage, raw: debitJson }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
+    const result = await res.json()
+    console.log('📥 DebitRegularType Response:', result)
+
+    if (result.StatusCode === '000') {
+      await saveTransactionResult({
+        businessId,
+        customerId,
+        appointmentId,
+        pelecardTransactionId: result.PelecardTransactionId,
+        approvalCode: result.DebitApproveNumber,
+        amount: totalAmount,
+        currency: 1,
+        invoiceLink: result.InvoiceLink,
+        status: 'success',
+        errorMessage: result.ErrorMessage,
+      })
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          transactionId: result.PelecardTransactionId,
+          approvalCode: result.DebitApproveNumber,
+          invoiceLink: result.InvoiceLink,
+          message: result.ErrorMessage,
+          raw: result,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
     } else {
+      await saveTransactionResult({
+        businessId,
+        customerId,
+        appointmentId,
+        amount: totalAmount,
+        currency: 1,
+        status: 'error',
+        errorMessage: result.ErrorMessage || 'העסקה נכשלה',
+      })
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: result.ErrorMessage || 'העסקה נכשלה',
+          raw: result,
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+  } catch (err) {
+    console.error('DebitRegularType error:', err)
+    await saveTransactionResult({
+      businessId,
+      customerId,
+      appointmentId,
+      amount: totalAmount,
+      currency: 1,
+      status: 'error',
+      errorMessage: 'שגיאת תקשורת לשרת פלאכארד (DebitRegularType)',
+    })
+
+    return new Response(
+      JSON.stringify({ success: false, error: 'שגיאת תקשורת לשרת פלאכארד (DebitRegularType)' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+}
+ else {
       // עבור ביט, מזומן, העברה בנקאית - הפקת חשבונית בלבד
       try {
         const payload = {

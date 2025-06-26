@@ -1,34 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ArrowRight, 
-  Edit2, 
-  Ban, 
-  Star, 
-  Diamond, 
-  History, 
-  Award, 
-  Lock, 
-  Phone, 
-  Mail, 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  FileText, 
-  MessageSquare, 
-  Tag, 
-  User, 
-  Scissors, 
-  Package, 
-  CreditCard, 
-  AlertCircle, 
-  ArrowLeft, 
-  Repeat, 
-  Edit, 
-  Trash2, 
-  Plus, 
-  ShoppingBag, 
+import { AppointmentDetails } from '../../components/appointments/DayView/components/AppointmentDetails';
+import {
+  ArrowRight,
+  Edit2,
+  Ban,
+  Star,
+  Diamond,
+  History,
+  Award,
+  Lock,
+  Phone,
+  Mail,
+  Calendar,
+  MapPin,
+  Clock,
+  FileText,
+  MessageSquare,
+  Tag,
+  User,
+  Scissors,
+  Package,
+  CreditCard,
+  AlertCircle,
+  ArrowLeft,
+  Repeat,
+  Edit,
+  Trash2,
+  Plus,
+  ShoppingBag,
   Trophy
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -157,6 +158,9 @@ function CustomerDetails() {
   const { isFeatureAvailable } = useSubscription();
   const { isLoyaltyEnabled } = useLoyaltySettings();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  // const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [showEditForm, setShowEditForm] = useState(false);
   const [completedAppointments, setCompletedAppointments] = useState(0);
@@ -167,11 +171,11 @@ function CustomerDetails() {
   const [lastAppointment, setLastAppointment] = useState<any>(null);
   const [yearlyVisitCount, setYearlyVisitCount] = useState<number>(0);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
-  
+
   // בדיקה אם תכונת תכנית הנאמנות זמינה במנוי וגם מופעלת בהגדרות
   const loyaltyEnabled = isFeatureAvailable('loyalty_program') && isLoyaltyEnabled;
-  
-useEffect(() => {
+
+  useEffect(() => {
     if (id === 'new') {
       navigate('/customers', { replace: true });
     }
@@ -184,10 +188,10 @@ useEffect(() => {
   }, [id]);
 
   const loadCustomer = async () => {
-   if (!id || id === 'new') {
-  
-  return;
-}
+    if (!id || id === 'new') {
+
+      return;
+    }
 
 
 
@@ -201,23 +205,42 @@ useEffect(() => {
 
       if (error) throw error;
       setCustomer(data);
-      
+
       // Load all appointments
       const { data: allAppointments, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
-          id,
-          start_time,
-          status,
-          services (name_he),
-          users (name)
-        `)
+  id,
+  start_time,
+  end_time,
+  status,
+  business_id,
+  customer_id,
+  service_id,
+  staff_id,
+  metadata,
+  customers (
+    name,
+    phone
+  ),
+  services (
+    name_he
+  ),
+  users (
+    name
+  )
+`)
+
         .eq('customer_id', id)
         .order('start_time', { ascending: false });
 
       if (!appointmentsError) {
-        setRecentAppointments(allAppointments || []);
-      }
+  const recent = (allAppointments || [])
+    .filter((a) => a.status !== 'canceled')
+    .slice(0, 3);
+
+  setRecentAppointments(recent);
+}
 
       // Update customer with real statistics
       const completedAppointments = allAppointments?.filter((apt: Appointment) => apt.status === 'completed') || [];
@@ -231,7 +254,7 @@ useEffect(() => {
         return sum + servicePrices;
       }, 0);
       const averagePurchase = completedAppointments.length > 0 ? totalSpent / completedAppointments.length : 0;
-      
+
       // Calculate visit frequency
       let visitFrequency: 'high' | 'medium' | 'low' = 'low';
       if (completedAppointments.length >= 12) {
@@ -263,26 +286,26 @@ useEffect(() => {
   };
 
   const loadBusinessSettings = async () => {
-  try {
-    if (!customer?.business_id) return;
+    try {
+      if (!customer?.business_id) return;
 
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('settings')
-      .eq('id', customer.business_id)
-      .single(); // עכשיו זה יחזיר רק את העסק של הלקוח הזה
+      const { data, error } = await supabase
+        .from('businesses')
+        .select('settings')
+        .eq('id', customer.business_id)
+        .single(); // עכשיו זה יחזיר רק את העסק של הלקוח הזה
 
-    if (error) throw error;
-    setBusinessSettings(data.settings);
-  } catch (error) {
-    console.error('Error loading business settings:', error);
-  }
-};
+      if (error) throw error;
+      setBusinessSettings(data.settings);
+    } catch (error) {
+      console.error('Error loading business settings:', error);
+    }
+  };
 
   const fetchLastAppointment = async (customerId: string) => {
     try {
       const now = new Date();
-      
+
       // Get the last completed appointment
       const { data: lastAppointmentData, error: lastAppointmentError } = await supabase
         .from('appointments')
@@ -306,7 +329,7 @@ useEffect(() => {
 
       // Calculate number of completed appointments in the last year
       const yearAgo = subMonths(now, 12);
-      
+
       const { count, error: countError } = await supabase
         .from('appointments')
         .select('id', { count: 'exact', head: true })
@@ -343,6 +366,7 @@ useEffect(() => {
 
   const handleBlock = async () => {
     if (!customer) return;
+     console.log('clicked');
 
     try {
       const isBlocked = customer.metadata?.blocked || false;
@@ -366,6 +390,10 @@ useEffect(() => {
           ? 'הלקוח שוחרר בהצלחה'
           : 'הלקוח נחסם בהצלחה'
       );
+      if (typeof window !== 'undefined') {
+  window.dispatchEvent(new Event('refresh-customers'));
+}
+
 
       loadCustomer();
     } catch (error) {
@@ -423,39 +451,39 @@ useEffect(() => {
   }
 
   if (id === 'new') {
-  return null; // או מודאל יצירת לקוח, או ריק
-}
+    return null; // או מודאל יצירת לקוח, או ריק
+  }
 
-if (!customer) {
-  return (
-    <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
-      <p className="text-gray-500">לא נמצא לקוח</p>
-      <Link
-        to="/customers"
-        className="text-indigo-600 hover:text-indigo-700"
-      >
-        חזרה לרשימת הלקוחות
-      </Link>
-    </div>
+  if (!customer) {
+    return (
+      <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500">לא נמצא לקוח</p>
+        <Link
+          to="/customers"
+          className="text-indigo-600 hover:text-indigo-700"
+        >
+          חזרה לרשימת הלקוחות
+        </Link>
+      </div>
     );
   }
 
   const nextLevelProgress = () => {
     if (!customer || !businessSettings?.loyalty?.levels) return null;
-    
+
     const levels = {
       silver: { next: 'gold', required: 20 },
       gold: { next: 'diamond', required: 30 },
       diamond: { next: 'vip', required: 50 },
       vip: { next: null, required: null }
     };
-    
+
     const current = levels[customer.loyalty_level as keyof typeof levels];
     if (!current.next) return null;
 
     const progress = (customer.diamonds / current.required) * 100;
     const nextLevelBenefits = businessSettings.loyalty.levels[current.next as keyof typeof businessSettings.loyalty.levels]?.benefits;
-    
+
     return {
       next: current.next,
       nextLabel: getLoyaltyLabel(current.next),
@@ -493,7 +521,7 @@ if (!customer) {
 
   const renderLoyaltyStats = () => {
     if (!customer) return null;
-    
+
     const nextLevel = nextLevelProgress();
     return (
       <div className="space-y-4">
@@ -517,8 +545,8 @@ if (!customer) {
                 <span>{nextLevel.remaining} יהלומים נדרשים</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full" 
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full"
                   style={{ width: `${Math.min(nextLevel.progress, 100)}%` }}
                 ></div>
               </div>
@@ -550,16 +578,16 @@ if (!customer) {
               <div>
                 <h1 className="text-2xl font-bold">{customer.name}</h1>
                 <div className="flex items-center gap-3 mt-1">
-                  <a 
-                    href={`tel:${customer.phone}`} 
+                  <a
+                    href={`tel:${customer.phone}`}
                     className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
                   >
                     <Phone className="h-4 w-4" />
                     <span>{customer.phone}</span>
                   </a>
                   {customer.email && (
-                    <a 
-                      href={`mailto:${customer.email}`} 
+                    <a
+                      href={`mailto:${customer.email}`}
                       className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
                     >
                       <Mail className="h-4 w-4" />
@@ -583,11 +611,10 @@ if (!customer) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleBlock}
-              className={`p-2 rounded-full ${
-                customer.metadata?.blocked
+              className={`p-2 rounded-full ${customer.metadata?.blocked
                   ? 'bg-red-50 text-red-600 hover:bg-red-100'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <Ban className="h-5 w-5" />
             </motion.button>
@@ -602,30 +629,29 @@ if (!customer) {
               <span>לקוח חסום</span>
             </div>
           )}
-          
+
           {loyaltyEnabled && (
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
-              customer.loyalty_level === 'vip'
+            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${customer.loyalty_level === 'vip'
                 ? 'bg-purple-100 text-purple-800'
                 : customer.loyalty_level === 'diamond'
-                ? 'bg-blue-100 text-blue-800'
-                : customer.loyalty_level === 'gold'
-                ? 'bg-amber-100 text-amber-800'
-                : 'bg-gray-100 text-gray-800'
-            }`}>
+                  ? 'bg-blue-100 text-blue-800'
+                  : customer.loyalty_level === 'gold'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-gray-100 text-gray-800'
+              }`}>
               <Award className="h-4 w-4" />
               <span>
                 {customer.loyalty_level === 'vip'
                   ? 'VIP'
                   : customer.loyalty_level === 'diamond'
-                  ? 'יהלום'
-                  : customer.loyalty_level === 'gold'
-                  ? 'זהב'
-                  : 'כסף'}
+                    ? 'יהלום'
+                    : customer.loyalty_level === 'gold'
+                      ? 'זהב'
+                      : 'כסף'}
               </span>
             </div>
           )}
-          
+
           {customer.metadata?.tags && Array.isArray(customer.metadata.tags) && customer.metadata.tags.map((tag: string, index: number) => (
             <div key={index} className="flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
               <Tag className="h-4 w-4" />
@@ -640,43 +666,39 @@ if (!customer) {
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('info')}
-            className={`flex-1 py-3 px-4 text-center font-medium ${
-              activeTab === 'info' 
-                ? 'text-indigo-600 border-b-2 border-indigo-600' 
+            className={`flex-1 py-3 px-4 text-center font-medium ${activeTab === 'info'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
                 : 'text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             פרטים
           </button>
           <button
             onClick={() => setActiveTab('appointments')}
-            className={`flex-1 py-3 px-4 text-center font-medium ${
-              activeTab === 'appointments' 
-                ? 'text-indigo-600 border-b-2 border-indigo-600' 
+            className={`flex-1 py-3 px-4 text-center font-medium ${activeTab === 'appointments'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
                 : 'text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             תורים
           </button>
           {loyaltyEnabled && (
             <button
               onClick={() => setActiveTab('loyalty')}
-              className={`flex-1 py-3 px-4 text-center font-medium ${
-                activeTab === 'loyalty' 
-                  ? 'text-indigo-600 border-b-2 border-indigo-600' 
+              className={`flex-1 py-3 px-4 text-center font-medium ${activeTab === 'loyalty'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               נאמנות
             </button>
           )}
           <button
             onClick={() => setActiveTab('documents')}
-            className={`flex-1 py-3 px-4 text-center font-medium ${
-              activeTab === 'documents' 
-                ? 'text-indigo-600 border-b-2 border-indigo-600' 
+            className={`flex-1 py-3 px-4 text-center font-medium ${activeTab === 'documents'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
                 : 'text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             מסמכים
           </button>
@@ -816,15 +838,14 @@ if (!customer) {
                       {customer.visit_frequency === 'high'
                         ? 'גבוהה'
                         : customer.visit_frequency === 'medium'
-                        ? 'בינונית'
-                        : 'נמוכה'}
+                          ? 'בינונית'
+                          : 'נמוכה'}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
           )}
-
           {activeTab === 'appointments' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between mb-2">
@@ -840,7 +861,11 @@ if (!customer) {
               {recentAppointments.length > 0 ? (
                 <div className="space-y-4">
                   {recentAppointments.map((appointment) => (
-                    <div key={appointment.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all">
+                    <div
+                      key={appointment.id}
+                      onClick={() => setSelectedAppointment(appointment)}
+                      className="cursor-pointer bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all"
+                    >
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-medium text-lg">{appointment.services.name_he}</div>
@@ -858,7 +883,7 @@ if (!customer) {
                   ))}
 
                   <div className="text-center mt-4">
-                    <Link 
+                    <Link
                       to={`/appointments?customer=${customer.id}`}
                       className="text-indigo-600 hover:text-indigo-800 hover:underline"
                     >
@@ -872,8 +897,20 @@ if (!customer) {
                   <p className="text-gray-500">אין תורים קודמים</p>
                 </div>
               )}
+
+              {/* 👇 הצגת המודאל */}
+              {selectedAppointment && (
+                <AppointmentDetails
+                  appointment={selectedAppointment}
+                  onClose={() => setSelectedAppointment(null)}
+                  onUpdate={() => {
+                    loadCustomer(); // מרענן את כל הנתונים אחרי שינוי בתור
+                  }}
+                />
+              )}
             </div>
           )}
+
 
           {activeTab === 'loyalty' && loyaltyEnabled && (
             <div className="space-y-6">
@@ -884,25 +921,23 @@ if (!customer) {
                   רמת נאמנות
                 </h2>
                 <div className="flex items-center gap-4 mb-4">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-                    customer.loyalty_level === 'vip'
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center ${customer.loyalty_level === 'vip'
                       ? 'bg-purple-100'
                       : customer.loyalty_level === 'diamond'
-                      ? 'bg-blue-100'
-                      : customer.loyalty_level === 'gold'
-                      ? 'bg-amber-100'
-                      : 'bg-gray-100'
-                  }`}>
-                    <Award 
-                      className={`h-8 w-8 ${
-                        customer.loyalty_level === 'vip'
+                        ? 'bg-blue-100'
+                        : customer.loyalty_level === 'gold'
+                          ? 'bg-amber-100'
+                          : 'bg-gray-100'
+                    }`}>
+                    <Award
+                      className={`h-8 w-8 ${customer.loyalty_level === 'vip'
                           ? 'text-purple-600'
                           : customer.loyalty_level === 'diamond'
-                          ? 'text-blue-600'
-                          : customer.loyalty_level === 'gold'
-                          ? 'text-amber-600'
-                          : 'text-gray-600'
-                      }`}
+                            ? 'text-blue-600'
+                            : customer.loyalty_level === 'gold'
+                              ? 'text-amber-600'
+                              : 'text-gray-600'
+                        }`}
                       aria-hidden="true"
                     />
                   </div>
@@ -914,10 +949,10 @@ if (!customer) {
                       {customer.loyalty_level === 'vip'
                         ? 'רמת נאמנות הגבוהה ביותר'
                         : customer.loyalty_level === 'diamond'
-                        ? 'רמת נאמנות גבוהה'
-                        : customer.loyalty_level === 'gold'
-                        ? 'רמת נאמנות בינונית-גבוהה'
-                        : 'רמת נאמנות בסיסית'}
+                          ? 'רמת נאמנות גבוהה'
+                          : customer.loyalty_level === 'gold'
+                            ? 'רמת נאמנות בינונית-גבוהה'
+                            : 'רמת נאמנות בסיסית'}
                     </p>
                   </div>
                 </div>
@@ -949,8 +984,8 @@ if (!customer) {
                         <span>נדרשים עוד {nextLevelProgress()?.remaining} יהלומים</span>
                       </div>
                       <div className="w-full bg-white rounded-full h-2.5">
-                        <div 
-                          className="bg-indigo-600 h-2.5 rounded-full" 
+                        <div
+                          className="bg-indigo-600 h-2.5 rounded-full"
                           style={{ width: `${Math.min((nextLevelProgress()?.progress || 0), 100)}%` }}
                         ></div>
                       </div>
@@ -1030,7 +1065,7 @@ if (!customer) {
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                   <p className="text-gray-500">אין מסמכים זמינים</p>
-                  <button 
+                  <button
                     className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                     onClick={() => navigate('/invoices/new', { state: { customerId: customer.id } })}
                   >

@@ -47,6 +47,16 @@ function Customers() {
     }
   }, [location.state]);
 
+  useEffect(() => {
+  // מאזין לאירוע חיצוני שצריך לרענן את רשימת הלקוחות
+  const handleRefresh = () => {
+    if (businessId) loadCustomers(businessId);
+  };
+
+  window.addEventListener('refresh-customers', handleRefresh);
+  return () => window.removeEventListener('refresh-customers', handleRefresh);
+}, [businessId]);
+
   const loadBusinessData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
