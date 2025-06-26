@@ -9,7 +9,15 @@ export function useLongPress(callback: () => void, ms = 300) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const targetRef = useRef<EventTarget | null>(null);
 
+  // זיהוי מובייל
+  const isMobile = typeof window !== 'undefined' &&
+    /android|iphone|ipad|ipod|opera mini|iemobile|mobile/i.test(window.navigator.userAgent);
+
   const start = (e: React.PointerEvent) => {
+    // מניעת ברירת מחדל (zoom/magnifier) רק במובייל
+    if (isMobile && e.pointerType === 'touch') {
+      e.preventDefault();
+    }
     // לוודא שזו רק אצבע אחת ולא עט/עכבר נוסף
     if (e.pointerType === 'touch' || e.pointerType === 'mouse') {
       console.log('👆 Pointer Down:', e.pointerType);
@@ -35,5 +43,7 @@ export function useLongPress(callback: () => void, ms = 300) {
     onPointerMove: clear,
     onPointerCancel: clear,
     onPointerLeave: clear,
+    // מניעת תפריט הקשר/מגדלת רק במובייל
+    onContextMenu: isMobile ? (e: React.MouseEvent) => e.preventDefault() : undefined,
   };
 }
