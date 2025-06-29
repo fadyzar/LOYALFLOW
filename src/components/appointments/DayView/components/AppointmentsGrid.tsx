@@ -632,4 +632,4 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
 
 AppointmentsGrid.displayName = 'AppointmentsGrid';
 
-export default AppointmentsGrid;
+export { AppointmentsGrid };
