@@ -110,29 +110,27 @@ export const DayView = React.memo(function DayView({
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!touchStartX.current || !touchStartY.current) return;
-    
     const touchX = e.touches[0].clientX;
     const touchY = e.touches[0].clientY;
     const deltaX = touchX - touchStartX.current;
     const deltaY = touchY - touchStartY.current;
-    
-    // Only trigger horizontal swipe if the horizontal movement is significantly larger than vertical
+
     if (Math.abs(deltaX) > Math.abs(deltaY) * 2 && Math.abs(deltaX) > 100) {
       const currentIndex = staff.findIndex(s => s.id === selectedStaffId);
       let newIndex = currentIndex;
-      
-      if (deltaX > 0 && currentIndex > 0) {
-        newIndex = currentIndex - 1;
-      } else if (deltaX < 0 && currentIndex < staff.length - 1) {
-        newIndex = currentIndex + 1;
+
+      if (deltaX > 0) {
+        newIndex = currentIndex > 0 ? currentIndex - 1 : staff.length - 1; // עובר לאחרון אם בראשון
+      } else if (deltaX < 0) {
+        newIndex = currentIndex < staff.length - 1 ? currentIndex + 1 : 0; // עובר לראשון אם באחרון
       }
-      
+
       if (newIndex !== currentIndex) {
         setIsTransitioning(true);
         setSelectedStaffId(staff[newIndex].id);
         setTimeout(() => setIsTransitioning(false), 300);
       }
-      
+
       touchStartX.current = null;
       touchStartY.current = null;
     }
@@ -179,9 +177,8 @@ export const DayView = React.memo(function DayView({
   }, [handleScroll, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   const handleStaffSelect = useCallback((staffId: string) => {
-    if (isTransitioning) return;
     setSelectedStaffId(staffId);
-  }, [isTransitioning]);
+  }, []);
 
   const selectedStaff = staff.find(s => s.id === selectedStaffId);
   const selectedStaffAppointments = appointments.filter(apt => apt.staff_id === selectedStaffId);
@@ -271,11 +268,12 @@ export const DayView = React.memo(function DayView({
       
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="flex-1 overflow-y-auto overflow-x-hidden relative"
         style={{ 
           scrollBehavior: 'smooth',
           WebkitOverflowScrolling: 'touch',
           willChange: 'transform'
+          // אל תשים כאן height/minHeight!
         }}
       >
         <div className="flex w-full" style={{ paddingRight: '3rem' }}>

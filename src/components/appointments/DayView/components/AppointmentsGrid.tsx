@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { format, parseISO, addMinutes, setHours, setMinutes } from 'date-fns';
+import { format, parseISO, addMinutes } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Staff, Appointment, StaffHours } from '../types';
 import { CELL_HEIGHT, TIME_SLOTS, DRAG_SNAP } from '../constants';
@@ -19,11 +19,12 @@ interface AppointmentsGridProps {
   selectedDate: Date;
   onAppointmentClick: (appointment: Appointment) => void;
   onTimeSlotClick?: (date: Date, staffId: string) => void;
+  refreshAppointments?: () => void;
 }
 
 
 const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, AppointmentsGridProps>(
-  function AppointmentsGrid({ staff, staffHours, appointments, selectedDate, onAppointmentClick, onTimeSlotClick }, ref) {
+  function AppointmentsGrid({ staff, staffHours, appointments, selectedDate, onAppointmentClick, onTimeSlotClick, refreshAppointments }, ref) {
     const { user } = useAuth();
     const { getTimeSlotStyle } = useTimeSlots(staffHours, appointments);
     const [draggedTime, setDraggedTime] = useState<string | null>(null);
@@ -59,16 +60,24 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
       setDraggingEnabled(true);
     }, []);
 
+    // ניהול appointments ל-local state
+    const [localAppointments, setLocalAppointments] = useState<Appointment[]>(appointments);
+
+    // סנכרון עם props
+    useEffect(() => {
+      setLocalAppointments(appointments);
+    }, [appointments]);
+
     const appointmentsByStaff = useMemo(() => {
       const map = new Map<string, Appointment[]>();
-      appointments.forEach(apt => {
+      localAppointments.forEach(apt => {
         if (!map.has(apt.staff_id)) {
           map.set(apt.staff_id, []);
         }
         map.get(apt.staff_id)?.push(apt);
       });
       return map;
-    }, [appointments]);
+    }, [localAppointments]);
 
     useEffect(() => {
       if (isDraggingEnabled) {
@@ -161,8 +170,9 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
 
     // שיפור גרירה חלקה במובייל:
     // הבעיה: גרירה "קופצת" כי deltaY מחושב לפי clientY של האירוע, אבל framer-motion כבר מזיז את האלמנט.
-    // הפתרון: אל תחשב בעצמך את deltaY, אלא השתמש ב-info.point.y ש-framer-motion מספק ב-onDrag.
-    // זה עובד חלק גם במובייל וגם בדסקטופ.
+    // הפתרון: אל תשתמש ב-hooks (useRef/useEffect) כאן!
+    // const aptRef = useRef<HTMLDivElement>(null);
+    // useEffect(() => { ... }, []);
 
     // עדכן handleDrag לקבל info ולחשב deltaY נכון:
     const handleDrag = (e: any, appointment: Appointment, info?: { point: { y: number } }) => {
@@ -287,6 +297,19 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
           return;
         }
 
+        setLocalAppointments((prev) =>
+          prev.map((apt) =>
+            apt.id === appointment.id
+              ? {
+                  ...apt,
+                  start_time: newStartDate.toISOString(),
+                  end_time: newEndDate.toISOString(),
+                  updated_at: new Date().toISOString(),
+                }
+              : apt
+          )
+        );
+
         const { error } = await supabase
           .from('appointments')
           .update({
@@ -318,7 +341,9 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
         if (logError) throw logError;
 
         toast.success('זמן התור עודכן בהצלחה');
-
+        if (typeof refreshAppointments === 'function') {
+          refreshAppointments();
+        }
       } catch (error: any) {
         console.error('Error updating appointment:', error);
         toast.error(error.message || 'שגיאה בעדכון התור');
@@ -330,7 +355,7 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
         setDragType(null);
         dragStartRef.current = { y: 0, startTime: null, endTime: null, gridTop: 0 };
         setDraggingEnabled(false);
-        setShowMobileOverlay(false); // הסתר overlay
+        setShowMobileOverlay(false);
       }
     };
 
@@ -379,15 +404,34 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
     // המשתמש ילחץ על כפתור קטן בתור, ורק אז יוכל לגרור (drag) את התור
     const [dragZoneActiveId, setDragZoneActiveId] = useState<string | null>(null);
 
+    // הוסף polling שמרענן את התורים כל כמה שניות (למשל, כל 5 שניות).
+    useEffect(() => {
+      if (!refreshAppointments) return;
+      const interval = setInterval(() => {
+        refreshAppointments();
+      }, 5000); // כל 5 שניות
+      return () => clearInterval(interval);
+    }, [refreshAppointments]);
+
+    // הגדר את firstAptRef בראש הקומפוננטה (כבר קיים אצלך):
+    const firstAptRef = useRef<HTMLDivElement>(null);
+
+    // גלילה אוטומטית לתור הראשון ביום (השתמש ב-useEffect)
+    useEffect(() => {
+      if (firstAptRef.current) {
+        firstAptRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, [appointments, selectedDate, staff]);
+
     return (
       <div
         ref={gridRef}
-        className="flex-1 overflow-y-auto scrollbar-none overscroll-none h-full bg-white"
+        className="flex-1 bg-white overflow-y-auto"
         style={{
-          scrollBehavior: 'smooth',
+          height: '100vh',
+          minHeight: `${CELL_HEIGHT * 24 + 120}px`,
           WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'none',
-          height: '100%'
+          scrollBehavior: 'smooth'
         }}
       >
         {/* הודעה על גרירה לא נתמכת במובייל */}
@@ -401,8 +445,8 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
           ref={constraintsRef}
           className="relative w-full"
           style={{
+            minHeight: `${CELL_HEIGHT * 24 + 120}px`,
             height: `${CELL_HEIGHT * 24 + 120}px`,
-            minHeight: '100%',
             paddingRight: '1rem'
           }}
         >
@@ -411,7 +455,9 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
               const staffAppointments = appointmentsByStaff.get(member.id) || [];
               return (
                 <div key={member.id} className="w-full relative h-full">
-                  <div className="absolute inset-0">
+                  {/* הוסף div פנימי שמכיל את כל השעות עם height קבוע */}
+                  <div className="absolute inset-0" style={{ height: `${CELL_HEIGHT * 24}px` }}>
+                    {/* שעות היומן */}
                     {TIME_SLOTS.map((hour) => {
                       const slotStyle = getTimeSlotStyle(hour, member.id);
                       return (
@@ -430,27 +476,21 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                         />
                       );
                     })}
-
+                    {/* תורים */}
                     {staffAppointments.map((apt, i) => {
                       const isBeingDragged = draggedAppointment?.id === apt.id;
                       const position = isBeingDragged
                         ? calculateDynamicPosition(apt.start_time, apt.end_time, draggedEndTime || undefined)
                         : calculateAppointmentPosition(apt.start_time, apt.end_time);
-                      const aptRef = useRef<HTMLDivElement>(null);
-                      useEffect(() => {
-                        if (i === 0 && aptRef.current) {
-                          aptRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                      }, []);
-                      // אזור drag ייעודי במובייל
+
                       const showDragZone = isMobile;
                       const dragEnabled = isMobile && dragZoneActiveId === apt.id;
 
                       return (
                         <motion.div
                           key={apt.id}
-                          ref={i === 0 ? aptRef : null}
-                          {...(isMobile && !dragEnabled ? longPressHandlers : {})}
+                          ref={i === 0 ? firstAptRef : undefined}
+                          {...(showDragZone && !dragEnabled ? longPressHandlers : {})}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           whileHover={{ scale: 1.02, translateZ: 0 }}
@@ -459,15 +499,27 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                           dragElastic={0.1}
                           dragConstraints={constraintsRef}
                           onDragStart={(e) => {
-                            if (dragEnabled || !isMobile) handleDragStart(e, apt, 'move');
+                            // במובייל: קריאה ל-handleDragStart (כולל ניהול סטייט)
+                            if (dragEnabled) {
+                              handleDragStart(e, apt, 'move');
+                            }
+                            // במחשב: אפס סטייטים כאן (ולא תקרא ל-handleDragStart)
+                            if (!isMobile) {
+                              setDraggedAppointment(apt);
+                              setDraggedTime(format(parseISO(apt.start_time), 'HH:mm', { locale: he }));
+                              setDraggedEndTime(format(parseISO(apt.end_time), 'HH:mm', { locale: he }));
+                              setDragType('move');
+                              setIsResizing(false);
+                            }
                           }}
                           onDrag={(e, info) => {
                             if (dragEnabled || !isMobile) handleDrag(e, apt, info);
                           }}
-                          onDragEnd={(e) => {
+                          onDragEnd={async (e) => {
                             if (dragEnabled || !isMobile) {
-                              handleDragEnd(e, apt, member.id);
+                              await handleDragEnd(e, apt, member.id);
                               setDragZoneActiveId(null); // סיום drag zone
+                              // אין צורך לאפס כאן סטייטים, זה קורה ב-finally של handleDragEnd
                             }
                           }}
                           onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
@@ -488,7 +540,6 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                           }}
                         >
                           <div className="flex flex-col h-full relative">
-                            {/* Drag Zone Button במובייל - במרכז התור (ודא שהוא מעל כל התוכן) */}
                             {showDragZone && (
                               <button
                                 type="button"
@@ -513,7 +564,6 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                                 </svg>
                               </button>
                             )}
-                            {/* Top Resize Handle */}
                             {!isMobile && (
                               <motion.div
                                 className="absolute -top-1 left-0 right-0 h-2 cursor-ns-resize hover:bg-black/10 z-10"
@@ -542,7 +592,6 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                               <span className="truncate opacity-90">{apt.services?.name_he}</span>
                               <span className="truncate opacity-75 mr-1 rtl:ml-1">{apt.customers?.phone}</span>
                             </div>
-                            {/* Bottom Resize Handle */}
                             {!isMobile && (
                               <motion.div
                                 className="absolute -bottom-1 left-0 right-0 h-2 cursor-ns-resize hover:bg-black/10 z-10"
@@ -563,6 +612,13 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                         </motion.div>
                       );
                     })}
+                    {staffAppointments.length === 0 && (
+                      <div
+                        className="absolute left-0 right-0 top-1/2 -translate-y-1/2 text-center text-gray-300 text-sm select-none pointer-events-none"
+                      >
+                        אין תורים ליום זה
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -574,4 +630,6 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
   }
 ));
 
-export { AppointmentsGrid };
+AppointmentsGrid.displayName = 'AppointmentsGrid';
+
+export default AppointmentsGrid;
