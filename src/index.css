@@ -79,24 +79,25 @@
 
 /* Prevent elastic scroll on iOS */
 html, body {
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+  /* טריק: אל תשים overflow: hidden כאן! */
+  height: 100%;
 }
 
+/* ודא שתמיד יש גובה מלא ל-root */
 #root {
+  min-height: 100vh;
   height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Disable pull-to-refresh and elastic scroll */
+/* אפשר גלילה רגילה בגוף הדף */
 body {
   overscroll-behavior-y: none;
-  touch-action: none;
+  /* אל תשים overflow: hidden או touch-action: none */
+  min-height: 100vh;
 }
 
 /* Smooth scrolling */

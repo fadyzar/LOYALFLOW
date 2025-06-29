@@ -178,50 +178,40 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
     const handleDrag = (e: any, appointment: Appointment, info?: { point: { y: number } }) => {
       if (!dragStartRef.current.startTime || !dragStartRef.current.endTime || !dragType) return;
 
+      // חשב את Y הנוכחי של הגרירה
       const currentY = info?.point?.y ?? getClientY(e);
-      const deltaY = currentY - dragStartRef.current.y;
-      const minutesPerPixel = 60 / CELL_HEIGHT;
-      const deltaMinutes = Math.round(deltaY * minutesPerPixel / DRAG_SNAP) * DRAG_SNAP;
 
-      if (dragType === 'top') {
-        const newStartTime = addMinutes(dragStartRef.current.startTime, deltaMinutes);
-        const endTime = dragStartRef.current.endTime;
+      // חשב את Y של תחילת הגרירה (יחסית לגריד)
+      const gridTop = dragStartRef.current.gridTop || 0;
+      const relativeY = currentY - gridTop;
 
-        if (endTime.getTime() - newStartTime.getTime() < 15 * 60 * 1000) return;
+      // הגן על parseISO/Date אם startTime/endTime הם null
+      if (!dragStartRef.current.startTime || !dragStartRef.current.endTime) return;
 
-        const roundedMinutes = Math.round(newStartTime.getMinutes() / 5) * 5;
-        newStartTime.setMinutes(roundedMinutes);
+      // חשב את השעה החדשה לפי Y
+      const minutesFromTop = Math.max(0, Math.round(relativeY / CELL_HEIGHT * 60));
+      const newStartTime = new Date(dragStartRef.current.startTime);
+      newStartTime.setHours(0, 0, 0, 0);
+      newStartTime.setMinutes(minutesFromTop);
 
-        const newTimeStr = format(newStartTime, 'HH:mm', { locale: he });
-        if (draggedTime !== newTimeStr) setDraggedTime(newTimeStr);
-      } else if (dragType === 'bottom') {
-        const newEndTime = addMinutes(dragStartRef.current.endTime, deltaMinutes);
-        const startTime = dragStartRef.current.startTime;
+      // שמור על משך התור
+      const duration = parseISO(apt.end_time).getTime() - parseISO(apt.start_time).getTime();
+      const newEndTime = new Date(newStartTime.getTime() + duration);
 
-        if (newEndTime.getTime() - startTime.getTime() < 15 * 60 * 1000) return;
-        if (newEndTime.getTime() - startTime.getTime() > 4 * 60 * 60 * 1000) return;
+      // עיגול ל-5 דקות
+      newStartTime.setMinutes(Math.round(newStartTime.getMinutes() / 5) * 5);
+      newEndTime.setMinutes(Math.round(newEndTime.getMinutes() / 5) * 5);
 
-        const roundedMinutes = Math.round(newEndTime.getMinutes() / 5) * 5;
-        newEndTime.setMinutes(roundedMinutes);
+      // עדכן draggedTime/draggedEndTime
+      setDraggedTime(format(newStartTime, 'HH:mm', { locale: he }));
+      setDraggedEndTime(format(newEndTime, 'HH:mm', { locale: he }));
 
-        const newEndStr = format(newEndTime, 'HH:mm', { locale: he });
-        if (draggedEndTime !== newEndStr) setDraggedEndTime(newEndStr);
-      } else {
-        const newStartTime = addMinutes(dragStartRef.current.startTime, deltaMinutes);
-        const duration = dragStartRef.current.endTime.getTime() - dragStartRef.current.startTime.getTime();
-        const newEndTime = new Date(newStartTime.getTime() + duration);
-
-        const roundedStartMinutes = Math.round(newStartTime.getMinutes() / 5) * 5;
-        newStartTime.setMinutes(roundedStartMinutes);
-
-        const roundedEndMinutes = Math.round(newEndTime.getMinutes() / 5) * 5;
-        newEndTime.setMinutes(roundedEndMinutes);
-
-        const newTimeStr = format(newStartTime, 'HH:mm', { locale: he });
-        const newEndStr = format(newEndTime, 'HH:mm', { locale: he });
-        if (draggedTime !== newTimeStr) setDraggedTime(newTimeStr);
-        if (draggedEndTime !== newEndStr) setDraggedEndTime(newEndStr);
-      }
+      // עדכן draggedAppointment עם השעות החדשות (למיקום ויזואלי)
+      setDraggedAppointment({
+        ...appointment,
+        start_time: newStartTime.toISOString(),
+        end_time: newEndTime.toISOString(),
+      });
     };
 
     // בסיום גרירה: הסתר overlay
@@ -418,10 +408,65 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
 
     // גלילה אוטומטית לתור הראשון ביום (השתמש ב-useEffect)
     useEffect(() => {
+      // Debug: הדפס את מצב התורים וה-ref
+      // eslint-disable-next-line no-console
+      console.log('AppointmentsGrid debug:', {
+        appointments,
+        staff,
+        firstAptRef: firstAptRef.current,
+        gridRef: gridRef.current,
+        appointmentsByStaff: Array.from(appointmentsByStaff.entries()).map(([k, v]) => [k, v.length])
+      });
+
+      // אל תבצע גלילה אם אין תורים בכלל
+      if (!appointments || appointments.length === 0) {
+        // eslint-disable-next-line no-console
+        console.log('No appointments, skip scroll');
+        return;
+      }
+
+      // מצא את התור הראשון בפועל (לא רק firstAptRef)
       if (firstAptRef.current) {
+        // eslint-disable-next-line no-console
+        console.log('Scrolling to firstAptRef');
         firstAptRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('firstAptRef.current is null');
       }
     }, [appointments, selectedDate, staff]);
+
+    // בדוק אם יש תור שמתחיל ב-09:00 או כל קיבוע אחר
+    useEffect(() => {
+      if (appointments && appointments.length > 0) {
+        const nineApt = appointments.find(
+          apt => {
+            const d = parseISO(apt.start_time);
+            return d.getHours() === 9 && d.getMinutes() === 0;
+          }
+        );
+        if (nineApt) {
+          // eslint-disable-next-line no-console
+          console.log('יש תור שמתחיל ב-09:00:', nineApt);
+        }
+      }
+    }, [appointments]);
+
+    // בדוק את TIME_SLOTS - האם הוא מגדיר רק שעות 09:00 עד 17:00?
+    console.log('TIME_SLOTS:', TIME_SLOTS);
+
+    // Debug: הדפס שעות פעילות לכל איש צוות
+    useEffect(() => {
+      staff.forEach((member) => {
+        const hours = staffHours[member.id];
+        if (hours) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `שעות פעילות של ${member.name}: ${hours.start_time} - ${hours.end_time} (is_active=${hours.is_active})`
+          );
+        }
+      });
+    }, [staff, staffHours]);
 
     return (
       <div
@@ -431,7 +476,8 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
           height: '100vh',
           minHeight: `${CELL_HEIGHT * 24 + 120}px`,
           WebkitOverflowScrolling: 'touch',
-          scrollBehavior: 'smooth'
+          scrollBehavior: 'smooth',
+          overflowY: 'scroll'
         }}
       >
         {/* הודעה על גרירה לא נתמכת במובייל */}
@@ -453,22 +499,54 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
           <div className="flex w-full h-full">
             {staff.map((member) => {
               const staffAppointments = appointmentsByStaff.get(member.id) || [];
+              // שלב 1: שלוף שעות פעילות
+              const hours = staffHours[member.id];
+              let activeStart = 0, activeEnd = 24;
+              if (hours && hours.is_active && hours.start_time && hours.end_time) {
+                const [sh, sm] = hours.start_time.split(':').map(Number);
+                const [eh, em] = hours.end_time.split(':').map(Number);
+                activeStart = sh + (sm > 0 ? sm / 60 : 0);
+                activeEnd = eh + (em > 0 ? em / 60 : 0);
+              }
               return (
                 <div key={member.id} className="w-full relative h-full">
-                  {/* הוסף div פנימי שמכיל את כל השעות עם height קבוע */}
-                  <div className="absolute inset-0" style={{ height: `${CELL_HEIGHT * 24}px` }}>
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      height: `${CELL_HEIGHT * 24}px`,
+                      minHeight: `${CELL_HEIGHT * 24}px`,
+                      pointerEvents: 'auto'
+                    }}
+                  >
                     {/* שעות היומן */}
                     {TIME_SLOTS.map((hour) => {
                       const slotStyle = getTimeSlotStyle(hour, member.id);
+                      // שלב 2: בדוק אם הסלוט בשעות פעילות
+                      const isActive = hour >= activeStart && hour < activeEnd;
+                      // Debug: הדפס האם הסלוט פעיל
+                      if (!isActive) {
+                        // eslint-disable-next-line no-console
+                        console.log(
+                          `סלוט לא פעיל: staff=${member.name} שעה=${hour}:00 (activeStart=${activeStart}, activeEnd=${activeEnd})`
+                        );
+                      }
                       return (
                         <div
                           key={hour}
                           style={{
                             height: `${CELL_HEIGHT}px`,
-                            ...slotStyle.style
+                            ...slotStyle.style,
+                            background: !isActive
+                              ? 'repeating-linear-gradient(135deg, #f3f4f6 0px, #f3f4f6 8px, #e5e7eb 8px, #e5e7eb 16px)'
+                              : undefined,
+                            opacity: !isActive ? 0.7 : 1,
+                            filter: !isActive ? 'blur(0.5px) grayscale(0.2)' : undefined,
+                            pointerEvents: isActive ? 'auto' : 'none'
                           }}
-                          className={`border-b border-r border-gray-200 p-2 relative ${slotStyle.className}`}
+                          className={`border-b border-r border-gray-200 p-2 relative ${slotStyle.className} ${!isActive ? 'bg-gray-100' : ''}`}
+                          data-debug-active={isActive ? 'active' : 'inactive'}
                           onClick={() => {
+                            if (!isActive) return;
                             const date = new Date(selectedDate);
                             date.setHours(hour, 0, 0, 0);
                             onTimeSlotClick?.(date, member.id);
@@ -478,48 +556,156 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                     })}
                     {/* תורים */}
                     {staffAppointments.map((apt, i) => {
-                      const isBeingDragged = draggedAppointment?.id === apt.id;
-                      const position = isBeingDragged
-                        ? calculateDynamicPosition(apt.start_time, apt.end_time, draggedEndTime || undefined)
-                        : calculateAppointmentPosition(apt.start_time, apt.end_time);
+                      // הגדר משתני עיצוב סטטוס לפני ה-return
+                      let statusColor = '';
+                      let borderColor = '';
+                      let icon = null;
+                      let badgeText = '';
+                      let badgeColor = '';
+                      switch (apt.status) {
+                        case 'confirmed':
+                          statusColor = 'bg-gradient-to-l from-blue-50 to-white';
+                          borderColor = 'border-blue-400';
+                          icon = <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M8 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+                          badgeText = 'מאושר';
+                          badgeColor = 'bg-blue-100 text-blue-700';
+                          break;
+                        case 'completed':
+                          statusColor = 'bg-gradient-to-l from-green-50 to-white';
+                          borderColor = 'border-green-400';
+                          icon = <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M8 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+                          badgeText = 'הושלם';
+                          badgeColor = 'bg-green-100 text-green-700';
+                          break;
+                        case 'no_show':
+                          statusColor = 'bg-gradient-to-l from-orange-50 to-white';
+                          borderColor = 'border-orange-400';
+                          icon = <svg className="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+                          badgeText = 'לא הגיע';
+                          badgeColor = 'bg-orange-100 text-orange-700';
+                          break;
+                        case 'canceled':
+                          statusColor = 'bg-gradient-to-l from-red-50 to-white';
+                          borderColor = 'border-red-400';
+                          icon = <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+                          badgeText = 'בוטל';
+                          badgeColor = 'bg-red-100 text-red-700';
+                          break;
+                        default:
+                          statusColor = 'bg-gradient-to-l from-gray-50 to-white';
+                          borderColor = 'border-gray-300';
+                          icon = <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/></svg>;
+                          badgeText = 'ממתין';
+                          badgeColor = 'bg-gray-100 text-gray-600';
+                      }
 
-                      const showDragZone = isMobile;
-                      const dragEnabled = isMobile && dragZoneActiveId === apt.id;
+                      // הפעל drag תמיד בדסקטופ, ובמובייל רק אם dragZoneActiveId === apt.id
+                      const dragEnabled = !isMobile || dragZoneActiveId === apt.id;
+                      const isBeingDragged = draggedAppointment?.id === apt.id;
+
+                      const position = isBeingDragged
+                        ? calculateAppointmentPosition(draggedAppointment.start_time, draggedAppointment.end_time)
+                        : calculateAppointmentPosition(apt.start_time, apt.end_time);
 
                       return (
                         <motion.div
                           key={apt.id}
                           ref={i === 0 ? firstAptRef : undefined}
-                          {...(showDragZone && !dragEnabled ? longPressHandlers : {})}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          whileHover={{ scale: 1.02, translateZ: 0 }}
-                          drag={dragEnabled ? "y" : (!isMobile && isDraggingEnabled ? "y" : false)}
+                          {...(isMobile && !dragEnabled ? longPressHandlers : {})}
+                          initial={false}
+                          animate={false}
+                          whileHover={false}
+                          drag={dragEnabled ? "y" : false}
                           dragMomentum={false}
-                          dragElastic={0.1}
+                          dragElastic={0}
                           dragConstraints={constraintsRef}
                           onDragStart={(e) => {
-                            // במובייל: קריאה ל-handleDragStart (כולל ניהול סטייט)
                             if (dragEnabled) {
+                              // במובייל: בטל גלילה של body בזמן גרירה
+                              if (isMobile) {
+                                document.body.style.overscrollBehavior = 'none';
+                                document.body.style.touchAction = 'none';
+                                document.body.style.overflow = 'hidden';
+                              }
                               handleDragStart(e, apt, 'move');
-                            }
-                            // במחשב: אפס סטייטים כאן (ולא תקרא ל-handleDragStart)
-                            if (!isMobile) {
-                              setDraggedAppointment(apt);
-                              setDraggedTime(format(parseISO(apt.start_time), 'HH:mm', { locale: he }));
-                              setDraggedEndTime(format(parseISO(apt.end_time), 'HH:mm', { locale: he }));
-                              setDragType('move');
-                              setIsResizing(false);
                             }
                           }}
                           onDrag={(e, info) => {
-                            if (dragEnabled || !isMobile) handleDrag(e, apt, info);
+                            if (dragEnabled) {
+                              // חשב את Y הנוכחי של הגרירה
+                              const currentY = info?.point?.y ?? getClientY(e);
+
+                              // חשב את Y של תחילת הגרירה (יחסית לגריד)
+                              const gridTop = dragStartRef.current.gridTop || 0;
+                              const relativeY = currentY - gridTop;
+
+                              // הגן על parseISO/Date אם startTime/endTime הם null
+                              if (!dragStartRef.current.startTime || !dragStartRef.current.endTime) return;
+
+                              // חשב את השעה החדשה לפי Y
+                              const minutesFromTop = Math.max(0, Math.round(relativeY / CELL_HEIGHT * 60));
+                              const newStartTime = new Date(dragStartRef.current.startTime);
+                              newStartTime.setHours(0, 0, 0, 0);
+                              newStartTime.setMinutes(minutesFromTop);
+
+                              // שמור על משך התור
+                              const duration = parseISO(apt.end_time).getTime() - parseISO(apt.start_time).getTime();
+                              const newEndTime = new Date(newStartTime.getTime() + duration);
+
+                              // עיגול ל-5 דקות
+                              newStartTime.setMinutes(Math.round(newStartTime.getMinutes() / 5) * 5);
+                              newEndTime.setMinutes(Math.round(newEndTime.getMinutes() / 5) * 5);
+
+                              // עדכן draggedAppointment (ויזואלי)
+                              setDraggedAppointment({
+                                ...apt,
+                                start_time: newStartTime.toISOString(),
+                                end_time: newEndTime.toISOString(),
+                              });
+
+                              // עדכן draggedTime/draggedEndTime (לשעות בתצוגה)
+                              setDraggedTime(format(newStartTime, 'HH:mm', { locale: he }));
+                              setDraggedEndTime(format(newEndTime, 'HH:mm', { locale: he }));
+
+                              // עדכן גם את localAppointments (כדי שהיומן יזוז בזמן אמת)
+                              setLocalAppointments((prev) =>
+                                prev.map((item) =>
+                                  item.id === apt.id
+                                    ? {
+                                        ...item,
+                                        start_time: newStartTime.toISOString(),
+                                        end_time: newEndTime.toISOString(),
+                                        updated_at: new Date().toISOString(),
+                                      }
+                                    : item
+                                )
+                              );
+                            }
                           }}
                           onDragEnd={async (e) => {
-                            if (dragEnabled || !isMobile) {
-                              await handleDragEnd(e, apt, member.id);
-                              setDragZoneActiveId(null); // סיום drag zone
-                              // אין צורך לאפס כאן סטייטים, זה קורה ב-finally של handleDragEnd
+                            if (dragEnabled) {
+                              // שמור לשרת את הזמן החדש
+                              const dragged = draggedAppointment || apt;
+                              try {
+                                setDraggedAppointment(null);
+                                setDraggedTime(null);
+                                setDraggedEndTime(null);
+
+                                // שמור בשרת
+                                await supabase
+                                  .from('appointments')
+                                  .update({
+                                    start_time: dragged.start_time,
+                                    end_time: dragged.end_time,
+                                    updated_at: new Date().toISOString(),
+                                  })
+                                  .eq('id', dragged.id);
+
+                                toast.success('התור עודכן בהצלחה');
+                              } catch (error: any) {
+                                toast.error('שגיאה בעדכון התור');
+                              }
+                              setDragZoneActiveId(null);
                             }
                           }}
                           onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
@@ -527,20 +713,28 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                             e.stopPropagation();
                             onAppointmentClick(apt);
                           }}
-                          className={`absolute inset-x-1 p-2 rounded-lg shadow transition-all duration-150
+                          className={`absolute inset-x-1 p-3 rounded-2xl shadow-lg transition-all duration-150 border-l-4
+        ${statusColor} ${borderColor}
         ${isResizing ? 'cursor-ns-resize' : dragEnabled ? 'cursor-grabbing' : 'cursor-pointer'}
         ${getStatusColor(apt.status, Boolean(apt.metadata?.paid), Boolean(apt.metadata?.invoice_id))}
-        ${isBeingDragged && (isDraggingEnabled || dragEnabled) ? 'ring-2 ring-blue-500 bg-blue-50 shadow-lg scale-105' : ''}`}
+        ${isBeingDragged && dragEnabled ? 'ring-2 ring-blue-500 bg-blue-50 shadow-xl' : ''}`}
                           style={{
                             ...position,
-                            touchAction: 'none',
+                            touchAction: isMobile ? 'none' : 'auto',
+                            userSelect: 'none',
+                            WebkitUserSelect: 'none',
+                            msUserSelect: 'none',
                             willChange: 'transform, height, top',
                             transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden'
+                            backfaceVisibility: 'hidden',
+                            boxShadow: isBeingDragged
+                              ? '0 8px 32px 0 #60a5fa55'
+                              : '0 2px 12px 0 #e0e7ef33'
                           }}
                         >
                           <div className="flex flex-col h-full relative">
-                            {showDragZone && (
+                            {/* zone button במובייל */}
+                            {isMobile && (
                               <button
                                 type="button"
                                 className={`absolute left-1/2 top-1/2 z-30 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-md border-2 border-white transition
@@ -564,6 +758,30 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                                 </svg>
                               </button>
                             )}
+                            {/* תוכן התור */}
+                            <div className="flex items-center gap-2 mb-1">
+                              {icon}
+                              <span className="font-medium truncate text-base md:text-sm">{apt.customers?.name}</span>
+                              <span className="text-xs ml-auto font-mono">
+                                {isBeingDragged ? draggedTime : format(parseISO(apt.start_time), 'HH:mm', { locale: he })}
+                                {' - '}
+                                {isBeingDragged ? draggedEndTime : format(parseISO(apt.end_time), 'HH:mm', { locale: he })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs truncate opacity-90">{apt.services?.name_he}</span>
+                              <span className="text-xs truncate opacity-75 mr-1 rtl:ml-1">{apt.customers?.phone}</span>
+                              {apt.metadata?.price && (
+                                <span className="text-xs bg-green-100 text-green-700 rounded px-2 py-0.5 ml-1">₪{apt.metadata.price}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${badgeColor}`}>{badgeText}</span>
+                              {apt.metadata?.paid && (
+                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 ml-1">שולם</span>
+                              )}
+                            </div>
+                            {/* ...existing code for drag handles... */}
                             {!isMobile && (
                               <motion.div
                                 className="absolute -top-1 left-0 right-0 h-2 cursor-ns-resize hover:bg-black/10 z-10"
@@ -580,18 +798,6 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                                 onClick={(e) => e.stopPropagation()}
                               />
                             )}
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium truncate text-base md:text-sm">{apt.customers?.name}</span>
-                              <span className="text-xs">
-                                {isBeingDragged ? draggedTime : format(parseISO(apt.start_time), 'HH:mm', { locale: he })}
-                                {' - '}
-                                {isBeingDragged ? draggedEndTime : format(parseISO(apt.end_time), 'HH:mm', { locale: he })}
-                              </span>
-                            </div>
-                            <div className="text-xs mt-0.5 flex items-center justify-between">
-                              <span className="truncate opacity-90">{apt.services?.name_he}</span>
-                              <span className="truncate opacity-75 mr-1 rtl:ml-1">{apt.customers?.phone}</span>
-                            </div>
                             {!isMobile && (
                               <motion.div
                                 className="absolute -bottom-1 left-0 right-0 h-2 cursor-ns-resize hover:bg-black/10 z-10"
@@ -612,6 +818,7 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                         </motion.div>
                       );
                     })}
+                    {/* פתרון מודרני: תמיד אפשר לגלול ולהוסיף תור גם אם אין תורים */}
                     {staffAppointments.length === 0 && (
                       <div
                         className="absolute left-0 right-0 top-1/2 -translate-y-1/2 text-center text-gray-300 text-sm select-none pointer-events-none"

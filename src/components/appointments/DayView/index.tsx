@@ -11,7 +11,6 @@ import { DayViewProps } from './types';
 import { CELL_HEIGHT } from './constants';
 import { useStaffHours } from './hooks/useStaffHours';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 
 export const DayView = React.memo(function DayView({ 
@@ -21,7 +20,7 @@ export const DayView = React.memo(function DayView({
   onAppointmentClick, 
   onTimeSlotClick, 
   showCurrentTime, 
-  currentTime 
+  currentTime
 }: DayViewProps) {
   const { business, user } = useAuth();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -39,7 +38,6 @@ export const DayView = React.memo(function DayView({
   const touchStartY = useRef<number | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
   const [scrollPosition, setScrollPosition] = useState(0);
 
   useEffect(() => {
@@ -207,93 +205,207 @@ export const DayView = React.memo(function DayView({
     }
   };
 
-  // Use React Query for data fetching with caching
-  const { data: appointmentsData, isLoading } = useQuery({
-    queryKey: ['appointments', selectedDate, business?.id],
-    queryFn: async () => {
-      if (!business?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('business_id', business.id)
-        .gte('start_time', `${selectedDate}T00:00:00`)
-        .lte('start_time', `${selectedDate}T23:59:59`)
-        .order('start_time');
+  // במקום זאת, תשתמש רק ב-appointments שמגיע מהפרופס (מהקומפוננטה הראשית)
+  // שיפור: רקע מודרני ליומן
+  const calendarBg = 'linear-gradient(180deg, #fff 0%, #f3f6fa 100%)';
 
-      if (error) throw error;
-      return data;
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    enabled: !!business?.id // Only run the query when we have a business ID
-  });
+  // טאב אנשי צוות צבעוני ודביק (sticky) - שיפור עיצוב
+  const StaffTabs = (
+    <div
+      className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur-md shadow-sm"
+      style={{
+        minHeight: 56,
+        top: 0,
+        zIndex: 50,
+      }}
+    >
+      <div className="flex overflow-x-auto scrollbar-none px-2 py-1 gap-2">
+        {staff.map((member) => (
+          <motion.button
+            key={member.id}
+            onClick={() => setSelectedStaffId(member.id)}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.97 }}
+            className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-150
+              ${selectedStaffId === member.id
+                ? 'bg-gradient-to-r from-indigo-500 to-blue-400 text-white shadow'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-blue-50'
+              }`}
+            style={{
+              boxShadow: selectedStaffId === member.id ? '0 2px 12px 0 #6366f140' : undefined,
+              letterSpacing: '0.02em'
+            }}
+          >
+            {member.name}
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
 
-  // Restore scroll position after data updates
+  // רקע דקורטיבי ליומן (פסים דקים)
+  const DecorativeBg = (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+        background: calendarBg,
+      }}
+    >
+      {[...Array(24)].map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            top: `${i * CELL_HEIGHT}px`,
+            left: 0,
+            right: 0,
+            height: 1,
+            borderBottom: i % 2 === 0 ? '1px solid #e5e7eb' : '1px dashed #e5e7eb',
+            opacity: i % 2 === 0 ? 0.5 : 0.18,
+          }}
+        />
+      ))}
+      <div
+        style={{
+          position: 'absolute',
+          top: 40,
+          left: 24,
+          width: 120,
+          height: 120,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, #e5e7eb 0%, #fff 80%)',
+          opacity: 0.13,
+          zIndex: 0,
+        }}
+      />
+    </div>
+  );
+
+  // שיפור: highlight לשעה הנוכחית ביומן
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  // שיפור: אנימציה עדינה ל-highlight של השעה הנוכחית (מתעדכן כל דקה)
+  const [highlightHour, setHighlightHour] = useState(currentHour);
   useEffect(() => {
-    if (!isLoading && appointmentsData) {
-      const currentHour = new Date().getHours();
-      const scrollToPosition = currentHour * CELL_HEIGHT;
-      scrollContainerRef.current?.scrollTo({
-        top: scrollToPosition,
-        behavior: 'smooth'
-      });
-    }
-  }, [isLoading, appointmentsData]);
+    const interval = setInterval(() => {
+      setHighlightHour(new Date().getHours());
+    }, 60 * 1000); // כל דקה
+    return () => clearInterval(interval);
+  }, []);
+
+  // שיפור: הצג פס אדום דק (current time line) בתוך היומן
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentTimeLineTop = (nowMinutes / 60) * CELL_HEIGHT;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-none">
-        {/* Staff Tabs */}
-        <div className="flex-none border-b border-gray-200 bg-white z-10">
-          <div className="flex overflow-x-auto scrollbar-none">
-            {staff.map((member) => (
-              <button
-                key={member.id}
-                onClick={() => handleStaffSelect(member.id)}
-                className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                  selectedStaffId === member.id
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {member.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      
+    <div className="flex flex-col h-full" style={{ minHeight: '100vh', background: calendarBg, position: 'relative' }}>
+      {/* Staff Tabs */}
+      {StaffTabs}
       <div 
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden relative"
         style={{ 
           scrollBehavior: 'smooth',
           WebkitOverflowScrolling: 'touch',
-          willChange: 'transform'
-          // אל תשים כאן height/minHeight!
+          willChange: 'transform',
+          minHeight: `${CELL_HEIGHT * 24 + 120}px`,
+          background: 'transparent',
+          position: 'relative'
         }}
       >
-        <div className="flex w-full" style={{ paddingRight: '3rem' }}>
-          <div className="flex-1">
-            <AppointmentsGrid
-              ref={gridRef}
-              staff={[selectedStaff!]}
-              staffHours={{ [selectedStaffId]: selectedStaffHours }}
-              appointments={selectedStaffAppointments}
-              selectedDate={selectedDate}
-              onAppointmentClick={onAppointmentClick}
-              onTimeSlotClick={onTimeSlotClick}
-            />
+        {/* רקע דקורטיבי */}
+        {DecorativeBg}
+        <div
+          className="flex w-full"
+          style={{
+            paddingRight: '3rem',
+            minHeight: `${CELL_HEIGHT * 24 + 120}px`,
+            zIndex: 1,
+          }}
+        >
+          <div className="flex-1" style={{ position: 'relative', minHeight: `${CELL_HEIGHT * 24 + 120}px` }}>
+            <div
+              style={{
+                height: `${CELL_HEIGHT * 24 + 120}px`,
+                minHeight: `${CELL_HEIGHT * 24 + 120}px`,
+                overflowY: 'auto',
+                background: 'transparent',
+                borderRadius: 18,
+                boxShadow: '0 2px 16px 0 #e0e7ef30',
+                border: `1px solid #e0e7ef`,
+                position: 'relative'
+              }}
+              className="transition-all duration-300"
+            >
+              {/* Highlight לשעה הנוכחית */}
+              <motion.div
+                animate={{ top: `${highlightHour * CELL_HEIGHT}px` }}
+                transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  height: `${CELL_HEIGHT}px`,
+                  background: 'linear-gradient(90deg, #e0e7ff33 0%, #f0f7ff00 100%)',
+                  zIndex: 2,
+                  pointerEvents: 'none',
+                  borderRadius: 12,
+                }}
+              />
+              {/* פס אדום דק לשעה הנוכחית */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: `${currentTimeLineTop}px`,
+                  height: 2,
+                  background: 'linear-gradient(90deg, #ef4444 0%, #fff0 100%)',
+                  zIndex: 3,
+                  borderRadius: 2,
+                  pointerEvents: 'none',
+                  boxShadow: '0 0 4px 0 #ef4444aa'
+                }}
+              />
+              <AppointmentsGrid
+                ref={gridRef}
+                staff={[selectedStaff!]}
+                staffHours={{ [selectedStaffId]: selectedStaffHours }}
+                appointments={selectedStaffAppointments}
+                selectedDate={selectedDate}
+                onAppointmentClick={onAppointmentClick}
+                onTimeSlotClick={onTimeSlotClick}
+                // refreshAppointments={refreshAppointments}
+              />
+            </div>
+            {selectedStaffAppointments.length === 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: `${CELL_HEIGHT * 24 + 120}px`,
+                  minHeight: `${CELL_HEIGHT * 24 + 120}px`,
+                  pointerEvents: 'none',
+                  opacity: 0,
+                  zIndex: 0,
+                }}
+              />
+            )}
           </div>
         </div>
         <div 
           ref={timeColumnRef}
           className="absolute top-0 right-0 w-12 bg-white z-20 h-full shadow-lg border-r border-gray-200"
           style={{ 
-            willChange: 'transform'
+            willChange: 'transform',
+            minHeight: `${CELL_HEIGHT * 24 + 120}px`
           }}
         >
           <TimeColumn 

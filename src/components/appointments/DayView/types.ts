@@ -1,11 +1,12 @@
 export interface DayViewProps {
   selectedDate: Date;
-  appointments: Appointment[];
-  staff: Staff[];
-  onAppointmentClick: (appointment: Appointment) => void;
-  onTimeSlotClick?: (date: Date, staffId: string) => void;
+  appointments: any[];
+  staff: any[];
+  onAppointmentClick: (appointment: any) => void;
+  onTimeSlotClick: (date: Date, staffId: string) => void;
   showCurrentTime: boolean;
   currentTime: Date;
+  refreshAppointments?: () => void; // הוסף את השדה הזה
 }
 
 export interface TimeSlotStyle {

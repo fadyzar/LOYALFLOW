@@ -426,7 +426,11 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]" // <-- שים לב z-index גבוה
+      style={{
+        // טריק: אפשר גלילה תמידית על המודל (אם התוכן גבוה מהמסך)
+        overflowY: 'auto'
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -435,7 +439,10 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
-        className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden"
+        className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-y-auto" // <-- overflow-y-auto כאן
+        style={{
+          maxHeight: '90vh' // טריק: לא לאפשר למודל לחרוג מהמסך
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -512,7 +519,12 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
 
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-gray-400" />
-                  <span>{appointment.users?.name}</span>
+                  {/* תקן כאן: הצג שם איש הצוות גם אם זה appointment.staff_name או appointment.users?.name */}
+                  <span>
+                    {appointment.staff_name ||
+                      appointment.users?.name ||
+                      appointment.staff_id}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">

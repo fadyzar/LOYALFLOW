@@ -579,10 +579,9 @@ function Appointments() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-auto relative">
         {loadingAppointments ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-20">
-
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
@@ -594,14 +593,14 @@ function Appointments() {
             onTimeSlotClick={handleTimeSlotClick}
             showCurrentTime={showCurrentTime}
             currentTime={currentTime}
+            refreshAppointments={() => loadData(businessId)}
           />
         )}
         {!loadingAppointments && appointments.length === 0 && (
-  <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-    אין תורים ביום זה
-  </div>
-)}
-
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+            אין תורים ביום זה
+          </div>
+        )}
       </div>
 
       {/* Modals */}
