@@ -14,79 +14,100 @@ export function useStaffHours(selectedDate: Date, staff: Staff[]) {
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const dayName = dayNames[dayOfWeek];
       const dateStr = selectedDate.toISOString().split('T')[0];
-      
+
       const hours: Record<string, StaffHours> = {};
-      
-      for (const member of staff) {
-        if (member.settings?.use_business_hours) {
-          // Load business hours logic...
-          const { data: businessHours, error: businessError } = await supabase
-            .from('business_hours')
-            .select('regular_hours, special_dates')
-            .eq('business_id', businessId)
-            .single();
 
-          if (businessError && businessError.code !== 'PGRST116') {
-            console.error('Error loading business hours:', businessError);
-            continue;
+      // טען business_hours פעם אחת
+      let businessHoursData: any = null;
+      if (staff.some((member) => member.settings?.use_business_hours)) {
+        const { data, error } = await supabase
+          .from('business_hours')
+          .select('regular_hours, special_dates')
+          .eq('business_id', businessId)
+          .single();
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading business hours:', error);
+        }
+        businessHoursData = data;
+      }
+
+      // טען staff_hours לכל אנשי הצוות בבת אחת
+      const staffIds = staff.filter((m) => !m.settings?.use_business_hours).map((m) => m.id);
+      let staffHoursMap: Record<string, any> = {};
+      if (staffIds.length > 0) {
+        const { data: staffHoursArr, error: staffHoursError } = await supabase
+          .from('staff_hours')
+          .select('*')
+          .in('staff_id', staffIds);
+
+        if (staffHoursError) {
+          console.error('Error loading staff hours:', staffHoursError);
+        }
+        if (Array.isArray(staffHoursArr)) {
+          for (const s of staffHoursArr) {
+            staffHoursMap[s.staff_id] = s;
           }
+        }
+      }
 
-          if (businessHours) {
-            const specialDate = businessHours.special_dates?.find((date: any) => 
-              date.date === dateStr
-            );
+      for (const member of staff) {
+        let working: StaffHours | undefined = undefined;
 
-            if (specialDate) {
-              hours[member.id] = {
-                is_active: !specialDate.is_closed,
-                start_time: specialDate.start_time,
-                end_time: specialDate.end_time,
-                breaks: []
+        if (member.settings?.use_business_hours && businessHoursData) {
+          const specialDate = businessHoursData.special_dates?.find((date: any) => date.date === dateStr);
+          if (specialDate) {
+            working = {
+              is_active: !specialDate.is_closed,
+              start_time: specialDate.start_time,
+              end_time: specialDate.end_time,
+              breaks: []
+            };
+          } else {
+            const regular = businessHoursData.regular_hours?.[dayName];
+            if (regular) {
+              working = {
+                is_active: regular.is_active ?? true,
+                start_time: regular.start_time ?? '07:00',
+                end_time: regular.end_time ?? '21:00',
+                breaks: regular.breaks ?? []
               };
-            } else {
-              hours[member.id] = businessHours.regular_hours[dayName];
             }
           }
-        } else {
-          // Load staff specific hours logic...
-          const { data: staffHours, error: staffError } = await supabase
-            .from('staff_hours')
-            .select('*')
-            .eq('staff_id', member.id)
-            .maybeSingle();
-
-          if (staffError) {
-            console.error('Error loading staff hours:', staffError);
-            continue;
-          }
-
-          if (staffHours) {
-            const specialDate = staffHours.special_dates?.find((date: any) => 
-              date.date === dateStr
-            );
-
-            if (specialDate) {
-              hours[member.id] = {
-                is_active: !specialDate.is_closed,
-                start_time: specialDate.start_time,
-                end_time: specialDate.end_time,
-                breaks: []
+        } else if (staffHoursMap[member.id]) {
+          const staffHour = staffHoursMap[member.id];
+          const specialDate = staffHour.special_dates?.find((date: any) => date.date === dateStr);
+          if (specialDate) {
+            working = {
+              is_active: !specialDate.is_closed,
+              start_time: specialDate.start_time,
+              end_time: specialDate.end_time,
+              breaks: []
+            };
+          } else {
+            const regular = staffHour.regular_hours?.[dayName];
+            if (regular) {
+              working = {
+                is_active: regular.is_active ?? true,
+                start_time: regular.start_time ?? '07:00',
+                end_time: regular.end_time ?? '21:00',
+                breaks: regular.breaks ?? []
               };
-            } else {
-              hours[member.id] = staffHours.regular_hours[dayName];
             }
           }
         }
-
-        // Set default hours if none found
-        if (!hours[member.id]) {
-          hours[member.id] = {
-            is_active: true,
-            start_time: '09:00',
-            end_time: '17:00',
+console.log('Business Hours Data:3333333333333333333', businessHoursData);
+console.log('Staff List:', staff);
+        // ברירת מחדל רק אם אין כלום
+        if (!working) {
+          working = {
+            is_active: dayName !== 'saturday',
+            start_time: '07:00',
+            end_time: '21:00',
             breaks: []
           };
         }
+
+        hours[member.id] = working;
       }
 
       setStaffHours(hours);

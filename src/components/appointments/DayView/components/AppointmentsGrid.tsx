@@ -10,11 +10,12 @@ import { supabase } from '../../../../lib/supabase';
 import { useAuth } from '../../../../contexts/auth/hooks';
 import toast from 'react-hot-toast';
 import { useLongPress } from '../../../../hooks/useLongPress';
+// import { StaffHeader } from './StaffHeader';
 
 
 interface AppointmentsGridProps {
   staff: Staff[];
-  staffHours: Record<string, StaffHours>;
+  // staffHours: Record<string, StaffHours>;
   appointments: Appointment[];
   selectedDate: Date;
   onAppointmentClick: (appointment: Appointment) => void;
@@ -487,6 +488,8 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
           </div>
         )}
         {/* הסר את פס ההודעה ואת ה-overlay במובייל */}
+        {/* הסר את כותרת אנשי הצוות (StaffHeader) */}
+        {/* <StaffHeader staff={staff} staffHours={staffHours} /> */}
         <div
           ref={constraintsRef}
           className="relative w-full"
@@ -496,6 +499,7 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
             paddingRight: '1rem'
           }}
         >
+          {/* הסר את הכותרת הישנה של אנשי הצוות כאן אם קיימת */}
           <div className="flex w-full h-full">
             {staff.map((member) => {
               const staffAppointments = appointmentsByStaff.get(member.id) || [];
@@ -603,6 +607,12 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                       const dragEnabled = !isMobile || dragZoneActiveId === apt.id;
                       const isBeingDragged = draggedAppointment?.id === apt.id;
 
+                      // הצג תמיד את השעה מתוך localAppointments (ולא apt מה props)
+                      const localApt = localAppointments.find(a => a.id === apt.id) || apt;
+                      const displayStart = localApt.start_time;
+                      const displayEnd = localApt.end_time;
+
+                      // הגדר position לפני ה-return
                       const position = isBeingDragged
                         ? calculateAppointmentPosition(draggedAppointment.start_time, draggedAppointment.end_time)
                         : calculateAppointmentPosition(apt.start_time, apt.end_time);
@@ -612,62 +622,52 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                           key={apt.id}
                           ref={i === 0 ? firstAptRef : undefined}
                           {...(isMobile && !dragEnabled ? longPressHandlers : {})}
-                          initial={false}
-                          animate={false}
-                          whileHover={false}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          whileHover={{ scale: 1.01, translateZ: 0 }}
                           drag={dragEnabled ? "y" : false}
                           dragMomentum={false}
                           dragElastic={0}
+                          dragTransition={{ power: 0.01, timeConstant: 600, restDelta: 0.001 }}
                           dragConstraints={constraintsRef}
+                          style={{
+                            ...position,
+                            touchAction: 'none',
+                            willChange: 'transform, height, top',
+                            transform: 'translate3d(0, 0, 0)',
+                            backfaceVisibility: 'hidden',
+                            boxShadow: isBeingDragged
+                              ? '0 8px 32px 0 #60a5fa55'
+                              : '0 2px 12px 0 #e0e7ef33'
+                          }}
                           onDragStart={(e) => {
                             if (dragEnabled) {
-                              // במובייל: בטל גלילה של body בזמן גרירה
-                              if (isMobile) {
-                                document.body.style.overscrollBehavior = 'none';
-                                document.body.style.touchAction = 'none';
-                                document.body.style.overflow = 'hidden';
-                              }
                               handleDragStart(e, apt, 'move');
                             }
                           }}
                           onDrag={(e, info) => {
                             if (dragEnabled) {
-                              // חשב את Y הנוכחי של הגרירה
+                              // השתמש תמיד ב-info.point.y (אם קיים) ואל תעדכן localAppointments כאן
                               const currentY = info?.point?.y ?? getClientY(e);
-
-                              // חשב את Y של תחילת הגרירה (יחסית לגריד)
                               const gridTop = dragStartRef.current.gridTop || 0;
                               const relativeY = currentY - gridTop;
-
-                              // הגן על parseISO/Date אם startTime/endTime הם null
                               if (!dragStartRef.current.startTime || !dragStartRef.current.endTime) return;
-
-                              // חשב את השעה החדשה לפי Y
                               const minutesFromTop = Math.max(0, Math.round(relativeY / CELL_HEIGHT * 60));
                               const newStartTime = new Date(dragStartRef.current.startTime);
                               newStartTime.setHours(0, 0, 0, 0);
                               newStartTime.setMinutes(minutesFromTop);
-
-                              // שמור על משך התור
                               const duration = parseISO(apt.end_time).getTime() - parseISO(apt.start_time).getTime();
                               const newEndTime = new Date(newStartTime.getTime() + duration);
-
-                              // עיגול ל-5 דקות
                               newStartTime.setMinutes(Math.round(newStartTime.getMinutes() / 5) * 5);
                               newEndTime.setMinutes(Math.round(newEndTime.getMinutes() / 5) * 5);
-
-                              // עדכן draggedAppointment (ויזואלי)
                               setDraggedAppointment({
                                 ...apt,
                                 start_time: newStartTime.toISOString(),
                                 end_time: newEndTime.toISOString(),
                               });
-
-                              // עדכן draggedTime/draggedEndTime (לשעות בתצוגה)
                               setDraggedTime(format(newStartTime, 'HH:mm', { locale: he }));
                               setDraggedEndTime(format(newEndTime, 'HH:mm', { locale: he }));
-
-                              // עדכן גם את localAppointments (כדי שהיומן יזוז בזמן אמת)
+                              // עדכן גם את localAppointments בזמן גרירה
                               setLocalAppointments((prev) =>
                                 prev.map((item) =>
                                   item.id === apt.id
@@ -718,32 +718,19 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
         ${isResizing ? 'cursor-ns-resize' : dragEnabled ? 'cursor-grabbing' : 'cursor-pointer'}
         ${getStatusColor(apt.status, Boolean(apt.metadata?.paid), Boolean(apt.metadata?.invoice_id))}
         ${isBeingDragged && dragEnabled ? 'ring-2 ring-blue-500 bg-blue-50 shadow-xl' : ''}`}
-                          style={{
-                            ...position,
-                            touchAction: isMobile ? 'none' : 'auto',
-                            userSelect: 'none',
-                            WebkitUserSelect: 'none',
-                            msUserSelect: 'none',
-                            willChange: 'transform, height, top',
-                            transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden',
-                            boxShadow: isBeingDragged
-                              ? '0 8px 32px 0 #60a5fa55'
-                              : '0 2px 12px 0 #e0e7ef33'
-                          }}
                         >
                           <div className="flex flex-col h-full relative">
                             {/* zone button במובייל */}
                             {isMobile && (
                               <button
                                 type="button"
-                                className={`absolute left-1/2 top-1/2 z-30 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-md border-2 border-white transition
-                                  ${dragZoneActiveId === apt.id ? 'bg-blue-700 scale-110' : 'bg-blue-500 opacity-80'}
+                                className={`absolute left-1/2 top-1/2 z-30 bg-gray-200 text-gray-600 rounded-full w-8 h-8 flex items-center justify-center shadow border transition
+                                  ${dragZoneActiveId === apt.id ? 'bg-gray-400 scale-110 text-white' : 'bg-gray-200 opacity-80'}
                                 `}
                                 style={{
                                   transform: 'translate(-50%, -50%)',
                                   touchAction: 'none',
-                                  boxShadow: '0 2px 8px 0 rgba(0,0,0,0.15)'
+                                  boxShadow: '0 2px 8px 0 rgba(0,0,0,0.10)'
                                 }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -752,9 +739,10 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                                 tabIndex={-1}
                                 aria-label="הפעל גרירה"
                               >
-                                <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                                  <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
-                                  <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                {/* אייקון drag-handle פשוט */}
+                                <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
+                                  <rect x="6" y="8" width="12" height="2" rx="1" fill="currentColor" />
+                                  <rect x="6" y="14" width="12" height="2" rx="1" fill="currentColor" />
                                 </svg>
                               </button>
                             )}
@@ -763,9 +751,9 @@ const AppointmentsGrid = React.memo(React.forwardRef<HTMLDivElement, Appointment
                               {icon}
                               <span className="font-medium truncate text-base md:text-sm">{apt.customers?.name}</span>
                               <span className="text-xs ml-auto font-mono">
-                                {isBeingDragged ? draggedTime : format(parseISO(apt.start_time), 'HH:mm', { locale: he })}
+                                {format(parseISO(displayStart), 'HH:mm', { locale: he })}
                                 {' - '}
-                                {isBeingDragged ? draggedEndTime : format(parseISO(apt.end_time), 'HH:mm', { locale: he })}
+                                {format(parseISO(displayEnd), 'HH:mm', { locale: he })}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 mb-1">

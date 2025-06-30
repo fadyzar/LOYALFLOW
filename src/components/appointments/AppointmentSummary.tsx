@@ -56,6 +56,37 @@ interface Benefits {
   };
 }
 
+function StickyStaffBar({ staffName }: { staffName: string }) {
+  return (
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        background: 'linear-gradient(90deg, #f0f4ff 0%, #fff 100%)',
+        borderBottom: '1px solid #e0e7ef',
+        boxShadow: '0 2px 12px 0 #e0e7ef22',
+        minHeight: 48,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        fontSize: 20,
+        color: '#2563eb',
+        letterSpacing: '0.02em',
+        borderRadius: '0 0 18px 18px',
+        marginBottom: 12
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <User style={{ width: 22, height: 22, color: '#2563eb', marginLeft: 6 }} />
+        <span>איש צוות:</span>
+        <span style={{ fontWeight: 800 }}>{staffName}</span>
+      </span>
+    </div>
+  );
+}
+
 export function AppointmentSummary({ data, onEdit, onConfirm, loading }: AppointmentSummaryProps) {
   const [benefits, setBenefits] = useState<Benefits | null>(null);
   const [benefitsLoading, setBenefitsLoading] = useState(false);
@@ -224,32 +255,35 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
   }, [data.customerId, data.serviceId, data.staffId, data.date, data.businessId]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ maxWidth: 420, margin: '0 auto', padding: 16 }}>
+      {/* Sticky Staff Bar */}
+      <StickyStaffBar staffName={data.staffName} />
+
       {/* Customer Info */}
-      <div className="bg-gray-50 p-4 rounded-xl">
+      <div className="bg-gradient-to-br from-blue-50 to-white p-4 rounded-2xl shadow-sm border border-blue-100">
         <div className="flex items-center gap-3 mb-2">
-          <User className="h-5 w-5 text-gray-400" />
-          <h3 className="font-medium">פרטי לקוח</h3>
+          <User className="h-5 w-5 text-blue-400" />
+          <h3 className="font-semibold text-blue-700">פרטי לקוח</h3>
         </div>
         <div className="space-y-1">
-          <p className="font-medium">{data.customerName}</p>
+          <p className="font-semibold text-gray-800">{data.customerName}</p>
           <p className="text-sm text-gray-500">{data.customerPhone}</p>
           {data.customerEmail && (
-            <p className="text-sm text-gray-500">{data.customerEmail}</p>
+            <p className="text-sm text-gray-400">{data.customerEmail}</p>
           )}
         </div>
       </div>
 
       {/* Service Details */}
-      <div className="bg-gray-50 p-4 rounded-xl">
+      <div className="bg-gradient-to-br from-indigo-50 to-white p-4 rounded-2xl shadow-sm border border-indigo-100">
         <div className="flex items-center gap-3 mb-2">
-          <Scissors className="h-5 w-5 text-gray-400" />
-          <h3 className="font-medium">פרטי שירות</h3>
+          <Scissors className="h-5 w-5 text-indigo-400" />
+          <h3 className="font-semibold text-indigo-700">פרטי שירות</h3>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span>{data.serviceName}</span>
-            <span className="font-medium text-indigo-600">₪{data.servicePrice}</span>
+            <span className="font-semibold">{data.serviceName}</span>
+            <span className="font-bold text-indigo-600">₪{data.servicePrice}</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Clock className="h-4 w-4" />
@@ -260,7 +294,7 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
 
       {/* Benefits */}
       {benefitsLoading && (
-        <div className="bg-gray-50 p-4 rounded-xl">
+        <div className="bg-gray-50 p-4 rounded-2xl shadow border border-blue-100">
           <div className="flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
             <span className="mr-2">טוען הטבות...</span>
@@ -269,20 +303,20 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
       )}
 
       {benefitsError && (
-        <div className="bg-red-50 p-4 rounded-xl text-red-600">
+        <div className="bg-red-50 p-4 rounded-2xl text-red-600 border border-red-200 shadow">
           {benefitsError}
         </div>
       )}
 
       {benefits && (
-        <div className="bg-gray-50 p-4 rounded-xl">
+        <div className="bg-gradient-to-br from-green-50 to-white p-4 rounded-2xl shadow-sm border border-green-100">
           <div className="flex items-center gap-3 mb-2">
-            <h3 className="font-medium">הטבות</h3>
+            <h3 className="font-semibold text-green-700">הטבות</h3>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span>מחיר בסיס:</span>
-              <span>₪{benefits.basePrice}</span>
+              <span className="font-semibold">₪{benefits.basePrice}</span>
             </div>
             
             {benefits.loyaltyDiscount > 0 && (
@@ -290,9 +324,9 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => toggleBenefit('loyaltyDiscount')}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
                       benefits.selectedBenefits.loyaltyDiscount
-                        ? 'bg-indigo-600 border-indigo-600'
+                        ? 'bg-green-600 border-green-600'
                         : 'border-gray-300'
                     }`}
                   >
@@ -302,7 +336,7 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
                   </button>
                   <span>הנחת {benefits.loyaltyLevel}:</span>
                 </div>
-                <span className="text-green-600">- ₪{benefits.loyaltyDiscount}</span>
+                <span className="text-green-600 font-bold">- ₪{benefits.loyaltyDiscount}</span>
               </div>
             )}
             
@@ -311,9 +345,9 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => toggleBenefit('freeAppointment')}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
                       benefits.selectedBenefits.freeAppointment
-                        ? 'bg-indigo-600 border-indigo-600'
+                        ? 'bg-green-600 border-green-600'
                         : 'border-gray-300'
                     }`}
                   >
@@ -323,36 +357,38 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
                   </button>
                   <span>תור חינם (הטבת {benefits.loyaltyLevel}):</span>
                 </div>
-                <span className="text-green-600">תור חינם!</span>
+                <span className="text-green-600 font-bold">תור חינם!</span>
               </div>
             )}
             
-            <div className="flex items-center justify-between font-bold text-lg pt-2 border-t">
+            <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
               <span>מחיר סופי:</span>
-              <span>₪{benefits.finalPrice}</span>
+              <span className="text-green-700">₪{benefits.finalPrice}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* Date and Time */}
-      <div className="bg-gray-50 p-4 rounded-xl">
+      <div className="bg-gradient-to-br from-yellow-50 to-white p-4 rounded-2xl shadow-sm border border-yellow-100">
         <div className="flex items-center gap-3 mb-2">
-          <Calendar className="h-5 w-5 text-gray-400" />
-          <h3 className="font-medium">מועד ואיש צוות</h3>
+          <Calendar className="h-5 w-5 text-yellow-400" />
+          <h3 className="font-semibold text-yellow-700">מועד ואיש צוות</h3>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-gray-500">תאריך</span>
-            <span>{format(data.date, 'EEEE, d בMMMM', { locale: he })}</span>
+            <span className="font-semibold">{format(data.date, 'EEEE, d בMMMM', { locale: he })}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-500">שעה</span>
-            <span>{format(data.date, 'HH:mm')} - {format(endTime, 'HH:mm')}</span>
+            <span className="font-semibold">
+              {format(data.date, 'HH:mm')} - {format(endTime, 'HH:mm')}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-500">איש צוות</span>
-            <span>{data.staffName}</span>
+            <span className="font-semibold">{data.staffName}</span>
           </div>
         </div>
       </div>
@@ -363,7 +399,8 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
         whileTap={{ scale: 0.98 }}
         onClick={onConfirm}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-2xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg"
+        style={{ marginTop: 12 }}
       >
         {loading ? (
           <>
