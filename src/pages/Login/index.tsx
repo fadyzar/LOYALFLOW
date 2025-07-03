@@ -4,15 +4,26 @@ import { Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth/hooks';
 import { LoginForm } from './components/LoginForm';
+import toast from 'react-hot-toast';
 
 function Login() {
   const navigate = useNavigate();
-  const { isCreatingAccount } = useAuth();
+  const { isCreatingAccount, signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      toast.error('שגיאה בהתחברות עם Google');
+    }
+    setLoading(false);
+  };
 
   if (isCreatingAccount) {
     return null;
@@ -30,7 +41,7 @@ function Login() {
           <motion.div
             className="mx-auto h-16 w-16 text-indigo-600 bg-indigo-50 rounded-2xl p-3 flex items-center justify-center"
             whileHover={{ scale: 1.1, rotate: 360 }}
-            transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
+            transition={{ duration: 0.8, type: 'spring', stiffness: 100 }}
           >
             <Calendar className="h-10 w-10" />
           </motion.div>
@@ -66,6 +77,22 @@ function Login() {
           onPasswordChange={(value) => setFormData(prev => ({ ...prev, password: value }))}
           onSuccess={() => setLoading(false)}
         />
+
+        {/* כפתור התחברות עם Google */}
+        <div className="mt-6">
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png"
+              alt="Google"
+              className="w-5 h-5"
+            />
+            התחברות עם Google
+          </button>
+        </div>
       </motion.div>
     </div>
   );

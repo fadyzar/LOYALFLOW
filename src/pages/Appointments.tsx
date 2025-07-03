@@ -11,6 +11,7 @@ import { NewAppointmentFlow } from '../components/appointments/NewAppointmentFlo
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
+
 interface AppointmentWithRelations {
   id: string;
   start_time: string;

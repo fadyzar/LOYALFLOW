@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Check, Building2, Users, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Step {
   id: string;
@@ -39,6 +40,7 @@ const steps: Step[] = [
 function LoadingScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState<string[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -50,6 +52,16 @@ function LoadingScreen() {
 
     return () => clearInterval(interval);
   }, [currentStep]);
+
+  useEffect(() => {
+    if (currentStep === steps.length - 1) {
+      // תן לאנימציה להסתיים ואז נווט
+      const timeout = setTimeout(() => {
+        navigate('/dashboard');
+      }, 1200);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentStep, navigate]);
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center z-50">

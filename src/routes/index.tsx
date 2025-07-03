@@ -6,7 +6,8 @@ import Login from '../pages/Login';
 import { RegistrationWizard } from '../components/registration/RegistrationWizard';
 import { RegistrationProvider } from '../contexts/registration/provider';
 import Dashboard from '../pages/Dashboard';
-import Appointments from '../pages/Appointments';
+// import Appointments from '../pages/Appointments';
+
 import { NewAppointmentFlow } from '../components/appointments/NewAppointmentFlow';
 import Customers from '../pages/Customers';
 import Settings from '../pages/Settings';
@@ -21,6 +22,7 @@ import ExternalPageSettings from '../pages/Settings/ExternalPageSettings';
 import ExternalPage from '../pages/ExternalPage';
 import Statistics from '../pages/Statistics';
 import Invoices from '../pages/Settings/Invoices';
+import CalendarPage from '../pages/Calendar/CalendarPage';
 
 // רכיב עטיפה לבדיקת זמינות תכונה
 const FeatureProtectedRoute = ({ 
@@ -93,10 +95,15 @@ function AppRoutes() {
         path="/dashboard"
         element={user ? <Dashboard /> : <Navigate to="/login" />}
       />
-      <Route
+      {/* <Route
         path="/appointments"
         element={user ? <Appointments /> : <Navigate to="/login" />}
+      /> */}
+       <Route
+        path="/calendar"
+        element={user ? <CalendarPage/> : <Navigate to="/login" />}
       />
+
       <Route
         path="/statistics"
         element={user ? <Statistics /> : <Navigate to="/login" />}

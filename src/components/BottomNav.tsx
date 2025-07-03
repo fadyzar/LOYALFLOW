@@ -9,7 +9,9 @@ import ReactDOM from 'react-dom';
 
 const navItems = [
   { icon: Home, label: 'דשבורד', path: '/dashboard' },
-  { icon: Calendar, label: 'יומן', path: '/appointments' },
+  // { icon: Calendar, label: 'יומן', path: '/appointments' },
+  { icon: Calendar, label: 'יומן', path: '/calendar' },
+
   { icon: PlusCircle, label: 'תור חדש', path: '/appointments/new', primary: true },
   { icon: Users, label: 'לקוחות', path: '/customers' },
   { icon: Settings, label: 'הגדרות', path: '/settings' }
