@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { CalendarEvent, DragState } from '../../types/calendar';
 import EventCard from './EventCard';
+import { useNavigate } from 'react-router-dom';
 
 interface DayViewProps {
   currentDate: Date;
@@ -16,6 +17,7 @@ interface DayViewProps {
   currentTime?: Date;
   dragPreviewEvent?: CalendarEvent | null;
   firstEventRef?: React.RefObject<HTMLDivElement>;
+  onTimeSlotClick?: (date: Date) => void; // הוסף prop אופציונלי
 }
 
 const CELL_HEIGHT = 80;
@@ -35,7 +37,11 @@ const DayView: React.FC<DayViewProps> = ({
   currentTime,
   dragPreviewEvent,
   firstEventRef,
+  onTimeSlotClick,
 }) => {
+  const navigate = useNavigate();
+  const [showChoice, setShowChoice] = useState<{ open: boolean; hour: number | null }>({ open: false, hour: null });
+
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   const dayEvents = useMemo(() => {
@@ -61,6 +67,24 @@ const DayView: React.FC<DayViewProps> = ({
     const slotDate = new Date(currentDate);
     slotDate.setHours(hour, 0, 0, 0);
     onTimeSlotDoubleClick(slotDate);
+  };
+
+  const handleTimeSlotClick = (hour: number) => {
+    setShowChoice({ open: true, hour });
+  };
+
+  const handleChoice = (type: 'event' | 'appointment') => {
+    if (showChoice.hour === null) return;
+    const slotDate = new Date(currentDate);
+    slotDate.setHours(showChoice.hour, 0, 0, 0);
+    setShowChoice({ open: false, hour: null });
+    if (type === 'event') {
+      // יצירת אירוע חדש (כמו double click)
+      onTimeSlotDoubleClick(slotDate);
+    } else if (type === 'appointment') {
+      // נווט ליצירת תור חדש
+      navigate('/appointments/new');
+    }
   };
 
   const getTimeInMinutes = (timeStr: string | undefined) => {
@@ -318,6 +342,7 @@ const DayView: React.FC<DayViewProps> = ({
                   <div
                     className="h-20 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                     onDoubleClick={() => handleTimeSlotDoubleClick(hour)}
+                    onClick={() => handleTimeSlotClick(hour)}
                   />
                   {[1, 2, 3].map(quarter => (
                     <div
@@ -379,6 +404,33 @@ const DayView: React.FC<DayViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* בחירת סוג יצירה */}
+      {showChoice.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-xl p-6 flex flex-col gap-4 min-w-[260px]">
+            <div className="text-lg font-bold text-gray-700 text-center mb-2">מה ברצונך ליצור?</div>
+            <button
+              className="w-full py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
+              onClick={() => handleChoice('event')}
+            >
+              אירוע חדש
+            </button>
+            <button
+              className="w-full py-2 rounded-lg bg-purple-500 text-white font-semibold hover:bg-purple-600 transition"
+              onClick={() => handleChoice('appointment')}
+            >
+              תור חדש
+            </button>
+            <button
+              className="w-full py-2 rounded-lg bg-gray-100 text-gray-500 font-medium hover:bg-gray-200 transition"
+              onClick={() => setShowChoice({ open: false, hour: null })}
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/auth/hooks';
 import { AppointmentDetails } from '../../components/appointments/DayView/components/AppointmentDetails';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 
 function CalendarPage() {
@@ -238,6 +239,13 @@ useEffect(() => {
   // גלילה אוטומטית לאירוע הראשון (DayView בלבד)
   const firstEventRef = useRef<HTMLDivElement | null>(null);
 
+  // גלילה אוטומטית לאירוע הראשון כאשר events משתנים
+  useEffect(() => {
+    if (view === 'day' && firstEventRef.current) {
+      firstEventRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [events, view, currentDate]);
+
   // ודא ש-fetchAppointmentsFromDB תלוי גם ב-currentDate וגם ב-business
   useEffect(() => {
     // טען תורים רק כאשר business קיים ונטען
@@ -324,6 +332,32 @@ useEffect(() => {
       const duration = dragState.draggedEvent.endTime.getTime() - dragState.draggedEvent.startTime.getTime();
       const newEndTime = new Date(newStartTime.getTime() + duration);
 
+      // בדוק אם זמן חדש מחוץ לשעות פעילות
+      if (!isInBusinessHours(newStartTime) || !isInBusinessHours(newEndTime)) {
+        // השתמש ב-toast מ-react-hot-toast
+        toast.error('לא ניתן לגרור תור אל מחוץ לשעות הפעילות של העסק', {
+          style: {
+            background: '#fff',
+            color: '#b91c1c',
+            fontWeight: 600,
+            fontSize: 16,
+            border: '1px solid #fca5a5',
+            boxShadow: '0 2px 8px #fca5a540',
+            direction: 'rtl'
+          },
+          icon: '⏰'
+        });
+        setDragState({
+          isDragging: false,
+          draggedEvent: null,
+          startPosition: { x: 0, y: 0 },
+          currentPosition: { x: 0, y: 0 },
+          originalTime: new Date()
+        });
+        setDragPreviewEvent(null);
+        return;
+      }
+
       updateEvent(dragState.draggedEvent.id, { startTime: newStartTime, endTime: newEndTime });
 
       const updateAppointmentInDB = async () => {
@@ -344,7 +378,7 @@ useEffect(() => {
       updateAppointmentInDB();
     }
 
-    setDragPreviewEvent(null); // נקה את ה-preview בסיום גרירה
+    setDragPreviewEvent(null);
 
     setDragState({
       isDragging: false,
@@ -353,7 +387,7 @@ useEffect(() => {
       currentPosition: { x: 0, y: 0 },
       originalTime: new Date()
     });
-  }, [dragState, updateEvent, setDragState, fetchAppointmentsFromDB, setEvents]);
+  }, [dragState, updateEvent, setDragState, fetchAppointmentsFromDB, setEvents, businessHours]);
 
   const handleTimeSlotDoubleClick = useCallback((date: Date) => {
     setSelectedTimeSlot(snapToFiveMinutes(date));
@@ -458,7 +492,8 @@ useEffect(() => {
       onEventClick: handleEventClick,
       dragPreviewEvent,
       businessOpenTime: businessHours?.start_time || '',
-      businessCloseTime: businessHours?.end_time || ''
+      businessCloseTime: businessHours?.end_time || '',
+      firstEventRef // הוסף את ה-ref ל-DayView
     };
 
     switch (view) {
@@ -477,10 +512,23 @@ useEffect(() => {
     }
   };
 
-  
+  // בדיקה אם זמן מסוים נמצא בשעות פעילות
+  const isInBusinessHours = (date: Date) => {
+    if (!businessHours?.start_time || !businessHours?.end_time) return false;
+    const [openH, openM] = businessHours.start_time.split(':').map(Number);
+    const [closeH, closeM] = businessHours.end_time.split(':').map(Number);
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+    const minutes = date.getHours() * 60 + date.getMinutes();
+    return minutes >= openMinutes && minutes < closeMinutes;
+  };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col" dir="rtl">
+    <div
+      className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col"
+      dir="rtl"
+      style={{ minWidth: 0, width: '100vw', maxWidth: '100vw', overflowX: 'hidden' }} // הוסף style שפורס את כל הרוחב
+    >
       <CalendarHeader
         currentDate={currentDate}
         view={view}
@@ -530,7 +578,12 @@ useEffect(() => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden px-4 pb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <div
+        className="flex-1 overflow-hidden pb-4"
+        style={{ minWidth: 0, width: '100%', maxWidth: '100vw' }} // הוסף style כאן גם
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {renderCalendarView()}
       </div>
      {selectedAppointment && (

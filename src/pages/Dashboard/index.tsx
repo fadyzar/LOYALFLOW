@@ -3,29 +3,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format, addDays, isSameDay, isAfter, startOfDay, endOfDay, addHours, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useSubscription } from '../../hooks/useSubscription';
-import { 
-  Calendar, 
-  MessageSquare, 
-  Mic, 
-  Send, 
-  StopCircle, 
-  User, 
-  Clock, 
-  Scissors, 
-  Ban, 
-  Check, 
+import {
+  Calendar,
+  MessageSquare,
+  Mic,
+  Send,
+  StopCircle,
+  User,
+  Clock,
+  Scissors,
+  Ban,
+  Check,
   X,
   AlertTriangle,
   UserX,
   Trash2,
   AlertCircle,
-  LogOut
+  LogOut,
+  Settings,
+  Users,
+  BarChart2,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/auth/hooks';
 import { supabase } from '../../lib/supabase';
 import { AppointmentDetails } from '../../components/appointments/DayView/components/AppointmentDetails';
 import { requestMicrophonePermission, startRecording } from '../../utils/microphone';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Message {
   id: string;
@@ -74,10 +79,14 @@ const QUICK_REPLIES = [
   'עדכן את שעות הפעילות שלי להיום',
 ];
 
-
-
+// פונקציה לבדוק האם הצ'אט חסום (העבר אותה לפני הפונקציה Dashboard)
 function isChatBlocked(tokensInfo: TokensInfo | null, isDashboardPage: boolean, trialAvailable: boolean) {
   return isDashboardPage && tokensInfo?.available === false && !trialAvailable;
+}
+
+function isUserBlockedFromAIAgent(user: any): boolean {
+  // חסום תמיד את כל המשתמשים מה-AI, גם בתקופת ניסיון
+  return true;
 }
 
 function Dashboard() {
@@ -107,7 +116,38 @@ function Dashboard() {
   const [tokensChannel, setTokensChannel] = useState<any>(null);
   const canRecord = window.isSecureContext && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
   const blocked = isChatBlocked(tokensInfo, isDashboardPage, trialAvailable);
+  const userBlocked = isUserBlockedFromAIAgent(user);
+  const navigate = useNavigate();
+  const [trialCountdown, setTrialCountdown] = useState<string | null>(null);
 
+  // טיימר לסיום 14 ימי ניסיון לפי user.created_at
+  useEffect(() => {
+    if (!user?.created_at || !trialAvailable) {
+      setTrialCountdown(null);
+      return;
+    }
+    const createdAt = new Date(user.created_at);
+    const trialEnd = new Date(createdAt.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 ימים
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = trialEnd.getTime() - now.getTime();
+      if (diff <= 0) {
+        setTrialCountdown('תקופת הניסיון הסתיימה');
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      setTrialCountdown(
+        days > 0
+          ? `נותרו ${days} ימים, ${hours} שעות, ${minutes} דקות לסיום תקופת הניסיון`
+          : `נותרו ${hours} שעות, ${minutes} דקות לסיום תקופת הניסיון`
+      );
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [user?.created_at, trialAvailable]);
 
   // Function to scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -255,23 +295,18 @@ function Dashboard() {
       if (business?.id) {
         setBusinessId(business.id);
         await loadAppointments(business.id);
-        // Subscribe to appointment changes
         const unsubscribeAppointments = subscribeToAppointments(business.id);
-        
-        // Load tokens info only if we're on the dashboard
         if (isDashboardPage) {
-        await loadTokensInfo(business.id);
-        // Subscribe to token usage changes
-        const unsubscribeTokens = subscribeToTokenUsage(business.id);
+          await loadTokensInfo(business.id);
+          const unsubscribeTokens = subscribeToTokenUsage(business.id);
         }
       } else if (user?.id) {
         await fetchBusinessId();
       }
 
-      // Load initial chat history
-      await loadChatHistory();
-      
-      // Subscribe to chat responses
+      // אל תטען היסטוריית צ'אט:
+      // await loadChatHistory();
+
       const unsubscribeChat = subscribeToChat();
 
       setIsInitialized(true);
@@ -377,10 +412,11 @@ function Dashboard() {
       loadAppointments(userData.business_id);
       
       // Load tokens info only if we're on the dashboard
+      let unsubscribeTokens: (() => void) | undefined;
       if (isDashboardPage) {
-      await loadTokensInfo(userData.business_id);
+        await loadTokensInfo(userData.business_id);
         // Subscribe to token usage changes
-        const unsubscribeTokens = subscribeToTokenUsage(userData.business_id);
+        unsubscribeTokens = subscribeToTokenUsage(userData.business_id);
       }
       
       // Subscribe to appointment changes
@@ -519,6 +555,7 @@ function Dashboard() {
     }
   };
 
+  // עדכן את handleSendMessage כך שיחסום שליחה אם המשתמש חסום
   const handleSendMessage = async (text?: string) => {
     const messageContent = text || newMessage;
     if (!messageContent.trim()) return;
@@ -530,6 +567,12 @@ function Dashboard() {
     // Check if business has enough tokens only if we're on the dashboard
     if (isDashboardPage && tokensInfo && !tokensInfo.available && !trialAvailable) {
       toast.error('אין אפשרות לשימוש בבינה מלאכותית בחבילה הנוכחית');
+      return;
+    }
+
+    // בדוק אם המשתמש חסום מה-AI
+    if (userBlocked) {
+      toast.error('גישה לצ\'אט AI חסומה למשתמשים בתקופת ניסיון.');
       return;
     }
 
@@ -652,15 +695,68 @@ function Dashboard() {
 
   const handleQuickReply = (e: React.MouseEvent, reply: string) => {
     e.preventDefault();
-    if (blocked) return;
+    if (blocked || userBlocked) return;
     handleSendMessage(reply);
   };
 
   const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
     e.preventDefault();
-    if (blocked) return;
+    if (blocked || userBlocked) return;
     action();
   };
+
+  // דוגמא ל-shortcuts
+  const shortcuts = [
+    {
+      label: 'ניהול לקוחות',
+      icon: <Users className="w-6 h-6 text-purple-600" />,
+      href: '/customers',
+      bg: 'bg-purple-50',
+      onClick: () => navigate('/customers'),
+    },
+    {
+      label: 'דוחות וסטטיסטיקות',
+      icon: <BarChart2 className="w-6 h-6 text-indigo-600" />,
+      href: '/statistics',
+      bg: 'bg-indigo-50',
+      onClick: () => navigate('/statistics'),
+    },
+    {
+      label: 'הגדרות מערכת',
+      icon: <Settings className="w-6 h-6 text-pink-600" />,
+      href: '/settings',
+      bg: 'bg-pink-50',
+      onClick: () => navigate('/settings'),
+    },
+    {
+      label: 'מרכז העזרה',
+      icon: <HelpCircle className="w-6 h-6 text-blue-600" />,
+      href: '/help',
+      bg: 'bg-blue-50',
+      onClick: () => navigate('/help'),
+    },
+  ];
+
+  // ההודעות שאתה רואה הן לא שגיאות קריטיות אלא אזהרות/מידע מהפיתוח:
+
+  // 1. Download the React DevTools... - המלצה בלבד, לא חובה.
+  // 2. [AuthProvider] business is null - כנראה המשתמש מחובר אך אין אובייקט business (עדיין לא נטען או לא משויך).
+  // 3. React Router Future Flag Warning... - אזהרות על שינויים עתידיים ב-React Router v7, לא משפיע כרגע.
+  // 4. Auth state changed, user: ... - מידע על התחברות משתמש.
+
+  // מה לעשות?
+  // - אם הכל עובד, אפשר להתעלם מהאזהרות.
+  // - אם business אמור להיות קיים, בדוק שהמשתמש באמת משויך לעסק במסד הנתונים.
+  // - אם אתה רוצה להעלים את אזהרת business is null, תוכל להוסיף בדיקות טעינה/המתנה לטעינת העסק לפני הצגת הדף.
+
+  // דוגמה לבדיקה לפני הצגת הדשבורד:
+  // if (!business) {
+  //   return (
+  //     <div className="flex items-center justify-center h-screen text-lg text-gray-500">
+  //       טוען נתוני עסק...
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -808,9 +904,90 @@ function Dashboard() {
           <div className="flex-1 overflow-hidden">
             <div 
               ref={chatContainerRef}
-              className="h-full overflow-y-auto p-4"
+              className="h-full overflow-y-auto p-4 relative"
             >
-              <div className="max-w-2xl mx-auto space-y-4">
+              {/* Overlay blur על הצ'אט בלבד אם חסום */}
+              {(blocked || userBlocked) && (
+                <>
+                  <div
+                    className="absolute inset-0 z-30 bg-white/60 backdrop-blur-[3px] rounded-2xl pointer-events-auto"
+                    style={{ transition: 'all 0.2s' }}
+                  />
+                  {/* כרטיס ברוך הבא לבוט AI */}
+                  <div
+                    className="absolute inset-0 z-40 flex flex-col items-center justify-center pointer-events-none"
+                    style={{ top: '32px' }}
+                  >
+                    <div
+                      className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-purple-200 flex flex-col items-center p-8 gap-4"
+                      style={{
+                        marginTop: '32px',
+                        boxShadow: '0 8px 32px #a78bfa33, 0 1.5px 12px #a78bfa22',
+                        background: 'linear-gradient(135deg, #ede9fe 0%, #fff 100%)'
+                      }}
+                    >
+                      {/* אייקון רובוט */}
+                      <div className="bg-purple-100 rounded-full p-4 mb-2 flex items-center justify-center">
+                        <img
+                          src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png"
+                          alt="AI Bot"
+                          className="w-14 h-14"
+                          style={{ filter: 'drop-shadow(0 2px 8px #a78bfa55)' }}
+                        />
+                      </div>
+                      {/* טקסט הסבר */}
+                      <div className="text-center">
+                        <h2 className="text-xl font-bold text-purple-700 mb-1">ברוך הבא ללוליטה AI 🤖</h2>
+                        <p className="text-gray-700 text-base">
+                          כאן תוכל לייעל את העבודה שלך, לקבל תובנות חכמות ולחסוך זמן בעזרת עוזר בינה מלאכותית מתקדם.
+                        </p>
+                      </div>
+                      {/* כפתור קריאה לפעולה */}
+                      <button
+                        className="pointer-events-auto mt-2 px-6 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-semibold shadow-md hover:from-purple-600 hover:to-indigo-600 transition"
+                        onClick={() => window.open('https://merry-axolotl-958eca.netlify.app', '_blank')}
+                      >
+                        שדרג עכשיו
+                      </button>
+                      {/* טיימר לסיום תקופת ניסיון 14 יום */}
+                      {trialAvailable && trialCountdown && (
+                        <div className="w-full mt-2 flex items-center justify-center">
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-100 to-yellow-50 border border-orange-200 shadow-sm">
+                            <Clock className="w-4 h-4 text-orange-500" />
+                            <span className="text-sm font-bold text-orange-700 tracking-tight">
+                              {trialCountdown}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {/* קיצורי דרך (shortcuts) - רק כאן */}
+                      <div className="w-full mt-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          {shortcuts.map((shortcut, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={shortcut.onClick}
+                              className={`flex flex-col items-center justify-center rounded-xl shadow-sm hover:shadow-md transition bg-white hover:bg-gradient-to-br hover:from-purple-100 hover:to-indigo-100 border border-gray-100 p-3 group ${shortcut.bg} pointer-events-auto`}
+                              style={{ minHeight: 80 }}
+                            >
+                              <div className="mb-1">{shortcut.icon}</div>
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-purple-700 transition text-center">{shortcut.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* טיפ למטה */}
+                      <div className="w-full mt-4">
+                        <div className="text-xs text-gray-500 text-center">
+                          טיפ: שדרוג לחשבון פרימיום יאפשר לך גישה מלאה לכל יכולות הבוט!
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="max-w-2xl mx-auto space-y-4 relative z-10">
                 {messages.map((message) => (
                   <motion.div
                     key={message.id}
@@ -861,9 +1038,9 @@ function Dashboard() {
                     key={index}
                     type="button"
                     onClick={(e) => handleQuickReply(e, reply)}
-                    disabled={blocked}
+                    disabled={blocked || userBlocked}
                     className={`px-4 py-2 rounded-xl text-sm whitespace-nowrap select-none ${
-                      blocked
+                      blocked || userBlocked
                         ? 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                     }`}
@@ -872,18 +1049,19 @@ function Dashboard() {
                   </button>
                 ))}
               </div>
-
               {/* Start of blocked overlay */}
               <div className="relative">
                 {/* Overlay when blocked */}
-                {blocked && (
+                {(blocked || userBlocked) && (
                   <div className="absolute inset-0 z-20 bg-white/70 flex flex-col items-center justify-center rounded-2xl pointer-events-auto">
-                    <span className="text-red-500 font-semibold text-sm">
-                      השירות אינו זמין בחבילה הנוכחית
-                    </span>
-                  </div>
+                  <span className="text-red-500 font-semibold text-sm">
+                    {userBlocked
+                      ? 'גישה לצ\'אט AI חסומה למשתמשים בתקופת ניסיון'
+                      : 'השירות אינו זמין בחבילה הנוכחית'}
+                  </span>
+                </div>
                 )}
-                <div className={blocked ? "pointer-events-none opacity-60" : ""}>
+                <div className={blocked || userBlocked ? "pointer-events-none opacity-60" : ""}>
                   <div className="flex items-center gap-4">
                     {!recordingBlob ? (
                       <>
