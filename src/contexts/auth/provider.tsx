@@ -219,7 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/dashboard'
+            redirectTo: 'https://statuesque-paprenjak-8310d3.netlify.app/dashboard'
       }
     });
     if (error) throw error;

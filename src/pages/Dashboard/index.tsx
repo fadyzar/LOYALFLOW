@@ -76,6 +76,10 @@ const QUICK_REPLIES = [
 
 
 
+function isChatBlocked(tokensInfo: TokensInfo | null, isDashboardPage: boolean, trialAvailable: boolean) {
+  return isDashboardPage && tokensInfo?.available === false && !trialAvailable;
+}
+
 function Dashboard() {
   const { trialAvailable } = useSubscription();
   const { isTrialStillValid } = useSubscription();
@@ -102,7 +106,7 @@ function Dashboard() {
   const [appointmentsChannel, setAppointmentsChannel] = useState<any>(null);
   const [tokensChannel, setTokensChannel] = useState<any>(null);
   const canRecord = window.isSecureContext && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
-  const blocked = isDashboardPage && tokensInfo?.available === false && !trialAvailable;
+  const blocked = isChatBlocked(tokensInfo, isDashboardPage, trialAvailable);
 
 
   // Function to scroll to bottom
@@ -849,7 +853,7 @@ function Dashboard() {
           </div>
 
           <div className="flex-none bg-white border-t border-gray-100 mt-auto pb-[72px]">
-            <div className="max-w-2xl mx-auto p-4 space-y-4">
+            <div className="max-w-2xl mx-auto p-4 space-y-4 relative">
               {/* Quick Reply Buttons */}
               <div className="flex items-center gap-2 px-2 overflow-x-auto scrollbar-none">
                 {quickReplies.map((reply, index) => (
@@ -869,92 +873,107 @@ function Dashboard() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-4">
-                {!recordingBlob ? (
-                  <>
-                    {/* Recording Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleButtonClick(e, isRecording ? handleStopRecording : handleStartRecording)}
-                      disabled={blocked || !canRecord}
-                      title={!canRecord ? "הקלטה נתמכת רק בדפדפן עם HTTPS (או localhost) ובמכשירים המאפשרים MediaRecorder" : undefined}
-                      className={`flex items-center justify-center w-[52px] h-[52px] rounded-2xl flex-shrink-0 select-none ${
-                        blocked || !canRecord
-                          ? 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed'
-                          : isRecording
-                          ? 'bg-red-100 text-red-600 animate-pulse'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
-                      }`}
-                    >
-                      {isRecording ? (
-                        <StopCircle className="h-6 w-6" />
-                      ) : (
-                        <Mic className="h-6 w-6" />
-                      )}
-                    </button>
-
-                    <div className="flex-1 relative">
-                      {isRecording ? (
-                        <div className="flex items-center justify-center h-[52px] bg-gray-100 rounded-2xl px-4">
-                          <span className="text-red-600 animate-pulse">
-                            {formatDuration(recordingDuration)}
-                          </span>
-                        </div>
-                      ) : (
-                        /* Message Input and Send Button */
-                        <div className="flex items-center bg-gray-100 rounded-2xl pr-4 pl-12">
-                          <textarea
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSendMessage();
-                              }
-                            }}
-                            placeholder="הקלד הודעה..."
-                            className="w-full py-3 bg-transparent focus:outline-none resize-none"
-                            style={{ height: '52px', lineHeight: '1.5' }}
-                            rows={1}
-                          />
-                          <button
-                            type="button"
-                            onClick={(e) => handleButtonClick(e, () => handleSendMessage())}
-                            disabled={blocked}
-                            className={`absolute left-3 p-2 select-none ${
-                              blocked
-                                ? 'text-gray-400 opacity-50 cursor-not-allowed'
-                                : 'text-indigo-600 hover:text-indigo-700 active:text-indigo-800'
-                            }`}
-                            aria-label="שלח הודעה"
-                          >
-                            <Send className="h-6 w-6" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center gap-4 bg-gray-100 rounded-2xl p-4">
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Mic className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="text-sm">הקלטה קולית</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => handleButtonClick(e, handleCancelRecording)}
-                        className="p-2 text-red-600 active:text-red-800 select-none"
-                        aria-label="בטל הקלטה"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
+              {/* Start of blocked overlay */}
+              <div className="relative">
+                {/* Overlay when blocked */}
+                {blocked && (
+                  <div className="absolute inset-0 z-20 bg-white/70 flex flex-col items-center justify-center rounded-2xl pointer-events-auto">
+                    <span className="text-red-500 font-semibold text-sm">
+                      השירות אינו זמין בחבילה הנוכחית
+                    </span>
                   </div>
                 )}
+                <div className={blocked ? "pointer-events-none opacity-60" : ""}>
+                  <div className="flex items-center gap-4">
+                    {!recordingBlob ? (
+                      <>
+                        {/* Recording Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleButtonClick(e, isRecording ? handleStopRecording : handleStartRecording)}
+                          disabled={blocked || !canRecord}
+                          title={!canRecord ? "הקלטה נתמכת רק בדפדפן עם HTTPS (או localhost) ובמכשירים המאפשרים MediaRecorder" : undefined}
+                          className={`flex items-center justify-center w-[52px] h-[52px] rounded-2xl flex-shrink-0 select-none ${
+                            blocked || !canRecord
+                              ? 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed'
+                              : isRecording
+                              ? 'bg-red-100 text-red-600 animate-pulse'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
+                          }`}
+                        >
+                          {isRecording ? (
+                            <StopCircle className="h-6 w-6" />
+                          ) : (
+                            <Mic className="h-6 w-6" />
+                          )}
+                        </button>
+
+                        <div className="flex-1 relative">
+                          {isRecording ? (
+                            <div className="flex items-center justify-center h-[52px] bg-gray-100 rounded-2xl px-4">
+                              <span className="text-red-600 animate-pulse">
+                                {formatDuration(recordingDuration)}
+                              </span>
+                            </div>
+                          ) : (
+                            /* Message Input and Send Button */
+                            <div className="flex items-center bg-gray-100 rounded-2xl pr-4 pl-12">
+                              <textarea
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage();
+                                  }
+                                }}
+                                placeholder="הקלד הודעה..."
+                                className="w-full py-3 bg-transparent focus:outline-none resize-none"
+                                style={{ height: '52px', lineHeight: '1.5' }}
+                                rows={1}
+                                disabled={blocked}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => handleButtonClick(e, () => handleSendMessage())}
+                                disabled={blocked}
+                                className={`absolute left-3 p-2 select-none ${
+                                  blocked
+                                    ? 'text-gray-400 opacity-50 cursor-not-allowed'
+                                    : 'text-indigo-600 hover:text-indigo-700 active:text-indigo-800'
+                                }`}
+                                aria-label="שלח הודעה"
+                              >
+                                <Send className="h-6 w-6" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center gap-4 bg-gray-100 rounded-2xl p-4">
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <Mic className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="text-sm">הקלטה קולית</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => handleButtonClick(e, handleCancelRecording)}
+                            className="p-2 text-red-600 active:text-red-800 select-none"
+                            aria-label="בטל הקלטה"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
+              {/* End of blocked overlay */}
             </div>
           </div>
         </div>

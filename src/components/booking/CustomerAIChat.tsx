@@ -49,6 +49,11 @@ const QUICK_REPLIES = [
   }
 ];
 
+// הוסף פונקציה לחסימת הצ'אט ללקוח
+function isCustomerChatBlocked(businessTokensInfo: any, trialAvailable: boolean) {
+  return businessTokensInfo && !businessTokensInfo.available && !trialAvailable;
+}
+
 export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
   const { trialAvailable } = useSubscription();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -65,6 +70,9 @@ export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [messageCount, setMessageCount] = useState<MessageCount | null>(null);
   const [businessTokensInfo, setBusinessTokensInfo] = useState<any>(null);
+
+  // שימוש בפונקציה החדשה
+  const blocked = isCustomerChatBlocked(businessTokensInfo, trialAvailable);
 
   useEffect(() => {
     // Get customer phone from localStorage
@@ -220,6 +228,7 @@ export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
   };
 
   const handleSendMessage = async (text?: string) => {
+    if (blocked) return;
     const messageContent = text || newMessage;
     if (!messageContent.trim()) return;
 
@@ -269,6 +278,8 @@ export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
   };
 
   const handleStartRecording = async () => {
+    if (blocked) return;
+
     // Check if business has enough tokens
     if (businessTokensInfo && !businessTokensInfo.available) {
       toast.error('לבית העסק אין אפשרות לשימוש בבינה מלאכותית בחבילה הנוכחית');
@@ -498,67 +509,76 @@ export function CustomerAIChat({ businessId, onClose }: CustomerAIChatProps) {
         )}
 
         {/* Input Area */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-4">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={isRecording ? handleStopRecording : handleStartRecording}
-              disabled={businessTokensInfo && !businessTokensInfo.available}
-              className={`flex items-center justify-center w-[52px] h-[52px] rounded-2xl flex-shrink-0 ${
-                isRecording
-                  ? 'bg-red-100 text-red-600 animate-pulse'
-                  : businessTokensInfo && !businessTokensInfo.available
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {isRecording ? (
-                <StopCircle className="h-6 w-6" />
-              ) : (
-                <Mic className="h-6 w-6" />
-              )}
-            </motion.button>
+        <div className="p-4 border-t border-gray-200 relative">
+          {blocked && (
+            <div className="absolute inset-0 z-20 bg-white/80 flex items-center justify-center rounded-2xl pointer-events-auto">
+              <span className="text-red-500 font-semibold text-sm">
+                השירות אינו זמין בחבילה הנוכחית
+              </span>
+            </div>
+          )}
+          <div className={blocked ? "pointer-events-none select-none opacity-60" : ""}>
+            <div className="flex items-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                disabled={blocked}
+                className={`flex items-center justify-center w-[52px] h-[52px] rounded-2xl flex-shrink-0 ${
+                  isRecording
+                    ? 'bg-red-100 text-red-600 animate-pulse'
+                    : blocked
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {isRecording ? (
+                  <StopCircle className="h-6 w-6" />
+                ) : (
+                  <Mic className="h-6 w-6" />
+                )}
+              </motion.button>
 
-            <div className="flex-1 relative">
-              {isRecording ? (
-                <div className="flex items-center justify-center h-[52px] bg-gray-100 rounded-2xl px-4">
-                  <span className="text-red-600 animate-pulse">
-                    {formatDuration(recordingDuration)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center bg-gray-100 rounded-2xl pr-4 pl-12">
-                  <textarea
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder="הקלד הודעה..."
-                    className="w-full py-3 bg-transparent focus:outline-none resize-none"
-                    style={{ height: '52px', lineHeight: '1.5' }}
-                    rows={1}
-                    disabled={businessTokensInfo && !businessTokensInfo.available}
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => handleSendMessage()}
-                    disabled={businessTokensInfo && !businessTokensInfo.available}
-                    className={`absolute left-3 p-2 ${
-                      businessTokensInfo && !businessTokensInfo.available
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-indigo-600 hover:text-indigo-700'
-                    }`}
-                  >
-                    <Send className="h-6 w-6" />
-                  </motion.button>
-                </div>
-              )}
+              <div className="flex-1 relative">
+                {isRecording ? (
+                  <div className="flex items-center justify-center h-[52px] bg-gray-100 rounded-2xl px-4">
+                    <span className="text-red-600 animate-pulse">
+                      {formatDuration(recordingDuration)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center bg-gray-100 rounded-2xl pr-4 pl-12">
+                    <textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="הקלד הודעה..."
+                      className="w-full py-3 bg-transparent focus:outline-none resize-none"
+                      style={{ height: '52px', lineHeight: '1.5' }}
+                      rows={1}
+                      disabled={blocked}
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleSendMessage()}
+                      disabled={blocked}
+                      className={`absolute left-3 p-2 ${
+                        blocked
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-indigo-600 hover:text-indigo-700'
+                      }`}
+                    >
+                      <Send className="h-6 w-6" />
+                    </motion.button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

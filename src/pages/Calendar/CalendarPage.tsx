@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarEvent, TouchGesture } from '../../types/calendar';
 import { useCalendarState } from '../../hooks/useCalendarState';
 import { useTouchGestures } from '../../hooks/useTouchGestures';
@@ -141,6 +141,13 @@ useEffect(() => {
           ? data.special_dates.find((s: any) => s.date === currentDate.toISOString().split('T')[0])
           : null;
 
+        // הדפס לקונסול את כל המידע
+        console.log('business_hours DB:', data);
+        console.log('regularHours:', regularHours);
+        console.log('currentDayName:', currentDayName);
+        console.log('todayHours:', todayHours);
+        console.log('special:', special);
+
         if (special && special.is_closed) {
           setBusinessHours(null);
         } else if (special && special.start_time && special.end_time) {
@@ -228,14 +235,24 @@ useEffect(() => {
       });
   };
 
+  // גלילה אוטומטית לאירוע הראשון (DayView בלבד)
+  const firstEventRef = useRef<HTMLDivElement | null>(null);
+
+  // ודא ש-fetchAppointmentsFromDB תלוי גם ב-currentDate וגם ב-business
   useEffect(() => {
+    // טען תורים רק כאשר business קיים ונטען
+    if (!business || !business.id) {
+      setEvents([]); // נקה תורים אם אין business
+      return;
+    }
+
     const loadEvents = async () => {
       const realEvents = await fetchAppointmentsFromDB();
       setEvents(realEvents);
     };
 
     loadEvents();
-  }, [currentDate, selectedStaffId]);
+  }, [business, currentDate, selectedStaffId]); // הוסף business לתלויות
 
   const handleGesture = useCallback((gesture: TouchGesture) => {
     switch (gesture.type) {
@@ -439,7 +456,9 @@ useEffect(() => {
       onDragEnd: handleDragEnd,
       onTimeSlotDoubleClick: handleTimeSlotDoubleClick,
       onEventClick: handleEventClick,
-      dragPreviewEvent // חדש!
+      dragPreviewEvent,
+      businessOpenTime: businessHours?.start_time || '',
+      businessCloseTime: businessHours?.end_time || ''
     };
 
     switch (view) {
@@ -447,8 +466,6 @@ useEffect(() => {
         return (
           <DayView
             {...commonProps}
-            businessOpenTime={businessHours?.start_time || ''}
-            businessCloseTime={businessHours?.end_time || ''}
           />
         );
       case 'week':
@@ -464,25 +481,6 @@ useEffect(() => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col" dir="rtl">
-      <div className="flex justify-center mt-4 mb-2">
-        <div className="flex items-center space-x-2 bg-white shadow px-4 py-2 rounded-xl border">
-          <label className="text-sm font-medium">סנן לפי איש צוות:</label>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={selectedStaffId || ''}
-            onChange={(e) => setSelectedStaffId(e.target.value || null)}
-          >
-            
-            <option value="">הצג הכל</option>
-            {staffList.map((staff) => (
-              <option key={staff.id} value={staff.id}>
-                {staff.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <CalendarHeader
         currentDate={currentDate}
         view={view}
@@ -490,6 +488,47 @@ useEffect(() => {
         onNavigate={navigateDate}
         onAddEvent={handleAddEvent}
       />
+
+      {/* סינון אנשי צוות - מודרני, אופקי, עם אנימציה */}
+      <div className="flex justify-center mt-2 mb-4">
+        <div className="flex gap-2 bg-white shadow px-4 py-2 rounded-xl border transition-all">
+          <button
+            className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200
+              ${!selectedStaffId
+                ? 'bg-indigo-100 text-indigo-700 shadow'
+                : 'bg-gray-50 text-gray-500 hover:bg-indigo-50'}
+            `}
+            onClick={() => setSelectedStaffId(null)}
+          >
+            הצג הכל
+          </button>
+          {staffList.map((staff) => (
+            <button
+              key={staff.id}
+              className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200 relative overflow-hidden
+                ${selectedStaffId === staff.id
+                  ? 'bg-indigo-500 text-white shadow'
+                  : 'bg-gray-50 text-gray-700 hover:bg-indigo-100'}
+              `}
+              onClick={() => setSelectedStaffId(staff.id)}
+            >
+              <span
+                className={`transition-all duration-300 ${
+                  selectedStaffId === staff.id ? 'scale-110 font-bold' : 'scale-100'
+                }`}
+              >
+                {staff.name}
+              </span>
+              {selectedStaffId === staff.id && (
+                <span
+                  className="absolute left-0 right-0 bottom-0 h-0.5 bg-indigo-400 rounded transition-all duration-300"
+                  style={{ opacity: 1 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex-1 overflow-hidden px-4 pb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {renderCalendarView()}

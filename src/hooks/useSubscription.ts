@@ -87,7 +87,7 @@ export function useSubscription() {
     const createdAt = new Date(user.created_at);
     const now = new Date();
     const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    return daysDiff <= 14;
+    return daysDiff <= 50;
   })();
 
   // האם עדיין תקף לפי התחלת החבילה
