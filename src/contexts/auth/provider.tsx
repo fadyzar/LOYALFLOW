@@ -96,12 +96,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (session?.user) {
-          console.log('Session found, user:', session.user.email);
-          setSession(session);
-          setUser(session.user);
-          await refreshBusiness();
-        } else {
+       if (session?.user) {
+  console.log('Session found, user:', session.user.email);
+  setSession(session);
+  setUser(session.user);
+
+  const { data: existingUser, error: userLookupError } = await supabase
+    .from('users')
+    .select('business_id')
+    .eq('id', session.user.id)
+    .single();
+
+  if (userLookupError) {
+    console.error('שגיאה בשליפת משתמש מטבלת users:', userLookupError);
+    setLoading(false);
+    return;
+  }
+
+  if (!existingUser) {
+    console.log('🔴 משתמש התחבר עם גוגל אך לא קיים בטבלת users');
+    navigate('/complete-registration');
+    setLoading(false);
+    return;
+  }
+
+  if (!existingUser.business_id) {
+    console.warn('⚠️ למשתמש אין business_id');
+    navigate('/complete-registration'); // או מסך אחר שמתאים
+    setLoading(false);
+    return;
+  }
+
+  await refreshBusiness();
+}
+
+
+   
+     else {
           console.log('No session found');
           setLoading(false);
         }
@@ -216,18 +247,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithGoogle = async () => {
   try {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-            redirectTo: 'https://statuesque-paprenjak-8310d3.netlify.app/dashboard'
+        redirectTo: 'https://delightful-truffle-340095.netlify.app/dashboard'
       }
     });
+
     if (error) throw error;
+
+    // לא חייב להמשיך כאן — Supabase יעשה redirect אוטומטי ל־/dashboard
   } catch (error: any) {
     console.error('Error signing in with Google:', error);
     toast.error(error.message || 'שגיאה בהתחברות עם Google');
   }
 };
+
 
   // הוסף הדפסות debug כדי לוודא מתי business נטען
   useEffect(() => {

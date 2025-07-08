@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, Calendar, List, Grid3X3, Plus, BarChart2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, List, Grid3X3, Plus, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
 import { CalendarView } from '../../types/calendar';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +9,9 @@ interface CalendarHeaderProps {
   onViewChange: (view: CalendarView) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
   onAddEvent: () => void;
+  staffList?: { id: string; name: string }[]; // הוסף אופציונלי
+  selectedStaffId?: string | null;
+  onStaffSelect?: (id: string | null) => void;
 }
 
 const CalendarHeader: React.FC<CalendarHeaderProps> = ({
@@ -16,7 +19,10 @@ const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   view,
   onViewChange,
   onNavigate,
-  onAddEvent
+  onAddEvent,
+  staffList = [],
+  selectedStaffId,
+  onStaffSelect,
 }) => {
   const formatHeaderDate = () => {
     const options: Intl.DateTimeFormatOptions = {
@@ -50,8 +56,52 @@ const CalendarHeader: React.FC<CalendarHeaderProps> = ({
 
   const navigate = useNavigate();
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // גלילה של אנשי צוות
+  const staffScrollRef = useRef<HTMLDivElement>(null);
+  const [staffScrollLeft, setStaffScrollLeft] = useState(0);
+
+  const scrollStaff = (dir: 'left' | 'right') => {
+    if (!staffScrollRef.current) return;
+    const el = staffScrollRef.current;
+    const scrollAmount = 120;
+    if (dir === 'left') {
+      el.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      setStaffScrollLeft(el.scrollLeft - scrollAmount);
+    } else {
+      el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setStaffScrollLeft(el.scrollLeft + scrollAmount);
+    }
+  };
+
+  // סגור את התפריט בלחיצה מחוץ
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
   return (
-    <div className="bg-white shadow-lg rounded-b-xl px-2 py-1 mb-2">
+    <div
+      className="bg-white rounded-b-xl px-2 py-1 mb-0"
+      style={{
+        marginTop: 0,
+        paddingTop: 10,
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        left: 0,
+        zIndex: 50,
+        width: '100%',
+      }}
+    >
       <div className="flex flex-col gap-1">
         {/* פס ימי השבוע עם חצים משני הצדדים */}
         <div className="flex items-center justify-center gap-2 mt-1">
@@ -101,7 +151,8 @@ const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             <ChevronRight size={20} />
           </button>
         </div>
-        {/* כפתור הוספת אירוע, סטטיסטיקות ותצוגות - סטטיסטיקות הכי ימינה */}
+    
+        {/* כפתור הוספת אירוע, סטטיסטיקות ותפריט תצוגה */}
         <div className="flex items-center mt-1 gap-2">
           <button
             onClick={() => navigate('/Statistics')}
@@ -110,27 +161,116 @@ const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             style={{ marginRight: 0 }}
           >
             <BarChart2 size={18} />
-            סטטיסטיקות
           </button>
-          <div className="flex-1" />
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shadow-inner">
-            {(['day', 'week', 'month'] as CalendarView[]).map((viewType) => {
-              const Icon = viewIcons[viewType];
-              return (
+         
+          {staffList && staffList.length > 0 && onStaffSelect && (
+            <div className="flex items-center gap-2">
+              <button
+                className="p-1 rounded-full bg-gray-100 hover:bg-indigo-100 text-indigo-500 border border-gray-200"
+                onClick={() => scrollStaff('left')}
+                tabIndex={-1}
+                type="button"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <div
+                ref={staffScrollRef}
+                className="flex gap-2 overflow-x-auto scrollbar-none px-1"
+                style={{ maxWidth: 320, minWidth: 0 }}
+              >
                 <button
-                  key={viewType}
-                  onClick={() => onViewChange(viewType)}
-                  className={`p-2 rounded-md transition-all duration-150 ${
-                    view === viewType
-                      ? 'bg-gradient-to-r from-indigo-500 to-blue-400 text-white shadow-md scale-105'
-                      : 'text-gray-600 hover:bg-indigo-50'
-                  }`}
-                  title={viewType === 'day' ? 'יום' : viewType === 'week' ? 'שבוע' : 'חודש'}
+                  className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200
+                    ${!selectedStaffId
+                      ? 'bg-indigo-100 text-indigo-700 shadow'
+                      : 'bg-gray-50 text-gray-500 hover:bg-indigo-50'}
+                  `}
+                  onClick={() => onStaffSelect(null)}
                 >
-                  <Icon size={18} />
+                  הצג הכל
                 </button>
-              );
-            })}
+                {staffList.map((staff) => (
+                  <button
+                    key={staff.id}
+                    className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200 relative overflow-hidden
+                      ${selectedStaffId === staff.id
+                        ? 'bg-indigo-500 text-white shadow'
+                        : 'bg-gray-50 text-gray-700 hover:bg-indigo-100'}
+                    `}
+                    onClick={() => onStaffSelect(staff.id)}
+                  >
+                    <span
+                      className={`transition-all duration-300 ${
+                        selectedStaffId === staff.id ? 'scale-110 font-bold' : 'scale-100'
+                      }`}
+                    >
+                      {staff.name}
+                    </span>
+                    {selectedStaffId === staff.id && (
+                      <span
+                        className="absolute left-0 right-0 bottom-0 h-0.5 bg-indigo-400 rounded transition-all duration-300"
+                        style={{ opacity: 1 }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="p-1 rounded-full bg-gray-100 hover:bg-indigo-100 text-indigo-500 border border-gray-200"
+                onClick={() => scrollStaff('right')}
+                tabIndex={-1}
+                type="button"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            </div>
+          )}
+          <div className="flex-1" />
+          {/* תפריט תצוגה חדש */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className={`p-2 rounded-md transition-all duration-150 bg-gradient-to-r from-indigo-500 to-blue-400 text-white shadow-md scale-105`}
+              title="בחר תצוגה"
+            >
+              <Calendar size={20} />
+            </button>
+            {menuOpen && (
+              <div className="absolute left-0 mt-2 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <button
+                  className={`w-full text-right px-4 py-2 hover:bg-indigo-50 text-sm ${
+                    view === 'day' ? 'font-bold text-indigo-600' : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onViewChange('day');
+                    setMenuOpen(false);
+                  }}
+                >
+                  תצוגת יום
+                </button>
+                <button
+                  className={`w-full text-right px-4 py-2 hover:bg-indigo-50 text-sm ${
+                    view === 'week' ? 'font-bold text-indigo-600' : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onViewChange('week');
+                    setMenuOpen(false);
+                  }}
+                >
+                  תצוגת שבוע
+                </button>
+                <button
+                  className={`w-full text-right px-4 py-2 hover:bg-indigo-50 text-sm ${
+                    view === 'month' ? 'font-bold text-indigo-600' : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onViewChange('month');
+                    setMenuOpen(false);
+                  }}
+                >
+                  תצוגת חודש
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

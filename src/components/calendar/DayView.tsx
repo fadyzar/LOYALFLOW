@@ -78,13 +78,11 @@ const DayView: React.FC<DayViewProps> = ({
     const slotDate = new Date(currentDate);
     slotDate.setHours(showChoice.hour, 0, 0, 0);
     setShowChoice({ open: false, hour: null });
-    if (type === 'event') {
-      // יצירת אירוע חדש (כמו double click)
-      onTimeSlotDoubleClick(slotDate);
-    } else if (type === 'appointment') {
+    if (type === 'appointment') {
       // נווט ליצירת תור חדש
       navigate('/appointments/new');
     }
+    // הסר אפשרות ל-event
   };
 
   const getTimeInMinutes = (timeStr: string | undefined) => {
@@ -136,78 +134,24 @@ const DayView: React.FC<DayViewProps> = ({
     return hour * CELL_HEIGHT + (minutes / 60) * CELL_HEIGHT;
   };
 
-  // רקע דקורטיבי
-  const DecorativeBg = (
-    <div
-      aria-hidden
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: 'none',
-        background: calendarBg,
-      }}
-    >
-      {[...Array(24)].map((_, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            top: `${i * CELL_HEIGHT}px`,
-            left: 0,
-            right: 0,
-            height: 1,
-            borderBottom: i % 2 === 0 ? '1px solid #e5e7eb' : '1px dashed #e5e7eb',
-            opacity: i % 2 === 0 ? 0.5 : 0.18,
-          }}
-        />
-      ))}
-      <div
-        style={{
-          position: 'absolute',
-          top: 40,
-          left: 24,
-          width: 120,
-          height: 120,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, #e5e7eb 0%, #fff 80%)',
-          opacity: 0.13,
-          zIndex: 0,
-        }}
-      />
-    </div>
-  );
-
   return (
     <div
       className="flex-1 bg-white rounded-lg overflow-hidden"
       style={{
         position: 'relative',
-        background: calendarBg,
+        background: '#fff',
         minHeight: '100vh',
+        height: '100%',
+        boxShadow: 'none', // הסר צל מהיומן
       }}
     >
-      {/* Decorative background */}
-      {DecorativeBg}
-
-      {/* Header */}
-      <div className="flex border-b border-gray-200 bg-white z-10 relative">
-        <div className="w-16 p-3 border-r border-gray-200 bg-gray-50">
-          <span className="text-xs text-gray-500 font-medium">שעה</span>
-        </div>
-        <div className="flex-1 p-3 text-center">
-          <span className="text-sm font-medium text-gray-700">
-            {currentDate.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric' })}
-          </span>
-        </div>
-      </div>
-
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         <div
           className={`flex w-full overflow-y-auto`}
           style={{
-            height: 'calc(100vh - 200px)',
+            height: '100vh', // גובה מלא של המסך
+            maxHeight: '100vh', // לא לחרוג מגובה המסך
             WebkitOverflowScrolling: 'touch',
             touchAction: dragState.isDragging ? 'none' : 'auto',
             position: 'relative',
@@ -232,7 +176,7 @@ const DayView: React.FC<DayViewProps> = ({
 
           {/* Day Column */}
           <div className="flex-1 relative" style={{ background: 'transparent' }}>
-            <div style={{ height: `${CELL_HEIGHT * 24}px` }}>
+            <div style={{ height: `${CELL_HEIGHT * 24}px`, maxHeight: `${CELL_HEIGHT * 24}px`, overflow: 'hidden' }}>
               {/* Overlay for closed hours */}
               {/* חסום לפני שעת הפתיחה */}
               {earlyHeight > 0 && (
@@ -255,7 +199,7 @@ const DayView: React.FC<DayViewProps> = ({
                   <div
                     style={{
                       position: 'absolute',
-                      top: 8,
+                      bottom: 8, // היה top: 8, עכשיו bottom: 8
                       left: '50%',
                       transform: 'translateX(-50%)',
                       color: '#b91c1c',
@@ -329,9 +273,8 @@ const DayView: React.FC<DayViewProps> = ({
                   style={{
                     top: `${getRedLineTop()}px`,
                     height: '2px',
-                    background: 'linear-gradient(90deg, #ef4444 0%, #fff0 100%)',
+                    background: '#ef4444', // אדום רגיל, ללא צל
                     borderRadius: '2px',
-                    boxShadow: '0 0 4px 0 #ef4444aa',
                   }}
                 />
               )}
@@ -376,8 +319,6 @@ const DayView: React.FC<DayViewProps> = ({
                         left: '0px',
                         right: '0px',
                         height: `${eventHeight}px`,
-                        // הסר borderRadius, border, boxShadow, overflow
-                        // תן לכרטיסיה עצמה (EventCard) לשלוט בעיצוב
                       }}
                     >
                       <EventCard
@@ -410,12 +351,7 @@ const DayView: React.FC<DayViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-xl shadow-xl p-6 flex flex-col gap-4 min-w-[260px]">
             <div className="text-lg font-bold text-gray-700 text-center mb-2">מה ברצונך ליצור?</div>
-            <button
-              className="w-full py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
-              onClick={() => handleChoice('event')}
-            >
-              אירוע חדש
-            </button>
+            {/* השאר רק את כפתור תור חדש */}
             <button
               className="w-full py-2 rounded-lg bg-purple-500 text-white font-semibold hover:bg-purple-600 transition"
               onClick={() => handleChoice('appointment')}

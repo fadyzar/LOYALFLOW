@@ -41,7 +41,7 @@ useEffect(() => {
   console.log('🏢 business:', business);
 }, [business]);
 
-// רענון business בכל כניסה לדף היומן
+// רענון business בכל כניסה לדף היומן - השאר רק פעם אחת!
 useEffect(() => {
   if (refreshBusiness) {
     refreshBusiness();
@@ -470,6 +470,25 @@ useEffect(() => {
     setView('day');
   }, [setCurrentDate, setView]);
 
+  // Only allow staff filtering for admin
+  const realRole =
+    (user?.user_metadata && user.user_metadata.role) ||
+    user?.role ||
+    (user?.user_metadata && user.user_metadata['role']);
+  const isAdmin =
+    realRole === 'admin' ||
+    realRole === 'ADMIN' ||
+    realRole === 'Admin';
+
+  // Debug: הדפס את ה-user וה-role לקונסול
+  useEffect(() => {
+    console.log('USER OBJECT:', user);
+    console.log('USER ROLE:', user?.role);
+    console.log('USER user_metadata:', user?.user_metadata);
+    console.log('realRole:', realRole);
+    console.log('isAdmin:', isAdmin);
+  }, [user, isAdmin, realRole]);
+
   // ודא שבקומפוננטות DayView/WeekView אתה מעביר events מסוננים לפי selectedStaffId
   const renderCalendarView = () => {
     // Optionally, show a loader while businessHours are loading
@@ -477,9 +496,13 @@ useEffect(() => {
       return <div>טוען שעות פעילות...</div>;
     }
 
-    const filteredEvents = selectedStaffId
-      ? events.filter((e: any) => e.staffId === selectedStaffId)
-      : events;
+    // סנן לפי צוות רק אם admin, אחרת תמיד הצג את היומן של המשתמש הנוכחי בלבד
+    let filteredEvents = events;
+    if (isAdmin && selectedStaffId) {
+      filteredEvents = events.filter((e: any) => e.staffId === selectedStaffId);
+    } else if (!isAdmin && user?.id) {
+      filteredEvents = events.filter((e: any) => e.staffId === user.id);
+    }
 
     const commonProps = {
       currentDate,
@@ -493,7 +516,7 @@ useEffect(() => {
       dragPreviewEvent,
       businessOpenTime: businessHours?.start_time || '',
       businessCloseTime: businessHours?.end_time || '',
-      firstEventRef // הוסף את ה-ref ל-DayView
+      firstEventRef
     };
 
     switch (view) {
@@ -525,9 +548,20 @@ useEffect(() => {
 
   return (
     <div
-      className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col"
-      dir="rtl"
-      style={{ minWidth: 0, width: '100vw', maxWidth: '100vw', overflowX: 'hidden' }} // הוסף style שפורס את כל הרוחב
+      style={{
+        minHeight: '100vh',
+        height: '100vh',
+        width: '100vw',
+        background: 'linear-gradient(to bottom right, #f0f6ff, #e0e7ff)',
+        margin: 0,
+        padding: 0,
+        overflow: 'hidden',
+        position: 'fixed', // תופס את כל המסך
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
     >
       <CalendarHeader
         currentDate={currentDate}
@@ -535,64 +569,48 @@ useEffect(() => {
         onViewChange={setView}
         onNavigate={navigateDate}
         onAddEvent={handleAddEvent}
+        staffList={isAdmin ? staffList : []}
+        selectedStaffId={isAdmin ? selectedStaffId : undefined}
+        onStaffSelect={isAdmin ? setSelectedStaffId : undefined}
       />
-
-      {/* סינון אנשי צוות - מודרני, אופקי, עם אנימציה */}
-      <div className="flex justify-center mt-2 mb-4">
-        <div className="flex gap-2 bg-white shadow px-4 py-2 rounded-xl border transition-all">
-          <button
-            className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200
-              ${!selectedStaffId
-                ? 'bg-indigo-100 text-indigo-700 shadow'
-                : 'bg-gray-50 text-gray-500 hover:bg-indigo-50'}
-            `}
-            onClick={() => setSelectedStaffId(null)}
-          >
-            הצג הכל
-          </button>
-          {staffList.map((staff) => (
-            <button
-              key={staff.id}
-              className={`px-3 py-1 rounded-lg font-medium text-sm transition-all duration-200 relative overflow-hidden
-                ${selectedStaffId === staff.id
-                  ? 'bg-indigo-500 text-white shadow'
-                  : 'bg-gray-50 text-gray-700 hover:bg-indigo-100'}
-              `}
-              onClick={() => setSelectedStaffId(staff.id)}
-            >
-              <span
-                className={`transition-all duration-300 ${
-                  selectedStaffId === staff.id ? 'scale-110 font-bold' : 'scale-100'
-                }`}
-              >
-                {staff.name}
-              </span>
-              {selectedStaffId === staff.id && (
-                <span
-                  className="absolute left-0 right-0 bottom-0 h-0.5 bg-indigo-400 rounded transition-all duration-300"
-                  style={{ opacity: 1 }}
-                />
-              )}
-            </button>
-          ))}
+      <div
+        className="flex-1"
+        style={{
+          minWidth: 0,
+          width: '100vw',
+          maxWidth: '100vw',
+          margin: 0,
+          padding: 0,
+          paddingTop: 68,
+          boxShadow: 'none',
+          height: 'calc(100vh - 68px)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            margin: 0,
+            padding: 0,
+          }}
+        >
+          {renderCalendarView()}
         </div>
       </div>
-
-      <div
-        className="flex-1 overflow-hidden pb-4"
-        style={{ minWidth: 0, width: '100%', maxWidth: '100vw' }} // הוסף style כאן גם
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        {renderCalendarView()}
-      </div>
-     {selectedAppointment && (
-  <AppointmentDetails
-    appointment={selectedAppointment}
-    onClose={() => setSelectedAppointment(null)}
-    onUpdate={handleAppointmentUpdate}
-  />
-)}
+      {/* הסר כל div נוסף מתחת ליומן */}
+      {selectedAppointment && (
+        <AppointmentDetails
+          appointment={selectedAppointment}
+          onClose={() => setSelectedAppointment(null)}
+          onUpdate={handleAppointmentUpdate}
+        />
+      )}
 
       <EventModal
         isOpen={showEventModal}
