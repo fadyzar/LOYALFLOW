@@ -7,6 +7,8 @@ import { RegistrationWizard } from '../components/registration/RegistrationWizar
 import { RegistrationProvider } from '../contexts/registration/provider';
 import Dashboard from '../pages/Dashboard';
 // import Appointments from '../pages/Appointments';
+import UpdatePassword from '../pages/Login/UpdatePassword';
+import ForgotPassword from '../pages/Login/ForgotPassword';
 
 import { NewAppointmentFlow } from '../components/appointments/NewAppointmentFlow';
 import Customers from '../pages/Customers';
@@ -83,6 +85,16 @@ function AppRoutes() {
         path="/register/staff" 
         element={<RegistrationRoutes />} 
       />
+
+      <Route
+  path="/update-password"
+  element={<UpdatePassword />}
+/>
+
+<Route
+  path="/forgot-password"
+  element={<ForgotPassword />}
+/>
 
       {/* External Page Route */}
       <Route

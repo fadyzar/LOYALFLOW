@@ -118,20 +118,23 @@ const DayView: React.FC<DayViewProps> = ({
 
   // highlight לשעה הנוכחית
   const now = currentTime || new Date();
-  const [highlightHour, setHighlightHour] = useState(now.getHours());
+  const [nowState, setNowState] = useState(now);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setHighlightHour((currentTime || new Date()).getHours());
-    }, 60 * 1000);
+      setNowState(new Date());
+    }, 1000); // עדכן כל שנייה
     return () => clearInterval(interval);
-  }, [currentTime]);
+  }, []);
 
   // קו אדום דק
   const getRedLineTop = () => {
-    if (now.toDateString() !== currentDate.toDateString()) return null;
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
-    return hour * CELL_HEIGHT + (minutes / 60) * CELL_HEIGHT;
+    if (nowState.toDateString() !== currentDate.toDateString()) return null;
+    const hour = nowState.getHours();
+    const minutes = nowState.getMinutes();
+    const seconds = nowState.getSeconds();
+    // מיקום מדויק לפי דקות ושניות
+    return hour * CELL_HEIGHT + ((minutes + seconds / 60) / 60) * CELL_HEIGHT;
   };
 
   return (
@@ -142,7 +145,8 @@ const DayView: React.FC<DayViewProps> = ({
         background: '#fff',
         minHeight: '100vh',
         height: '100%',
-        boxShadow: 'none', // הסר צל מהיומן
+        boxShadow: 'none',
+        marginTop: 12,
       }}
     >
       {/* Body */}
@@ -257,7 +261,7 @@ const DayView: React.FC<DayViewProps> = ({
                   left: 0,
                   right: 0,
                   height: `${CELL_HEIGHT}px`,
-                  top: `${highlightHour * CELL_HEIGHT}px`,
+                  top: `${nowState.getHours() * CELL_HEIGHT}px`,
                   background: 'linear-gradient(90deg, #e0e7ff33 0%, #f0f7ff00 100%)',
                   zIndex: 2,
                   pointerEvents: 'none',
@@ -266,17 +270,45 @@ const DayView: React.FC<DayViewProps> = ({
                 }}
               />
 
-              {/* קו אדום דק לשעה הנוכחית */}
+              {/* קו אדום דק לשעה הנוכחית (עם דקות ושניות) */}
               {getRedLineTop() !== null && (
                 <div
                   className="absolute left-0 right-0 z-30"
                   style={{
                     top: `${getRedLineTop()}px`,
                     height: '2px',
-                    background: '#ef4444', // אדום רגיל, ללא צל
+                    background: '#ef4444',
                     borderRadius: '2px',
+                    boxShadow: '0 0 6px 0 #ef4444a0',
+                    transition: 'top 0.2s linear',
                   }}
-                />
+                >
+                  {/* הצג את השעה הנוכחית עם דקות (לדוג' 14:37) - בצד ימין */}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 8, // היה left: 8, עכשיו right: 8
+                      top: -16,
+                      fontSize: 13,
+                      color: '#ef4444',
+                      background: '#fff',
+                      padding: '0 6px',
+                      borderRadius: 6,
+                      fontWeight: 700,
+                      boxShadow: '0 1px 4px #ef44441a',
+                      letterSpacing: '0.03em',
+                      zIndex: 40,
+                    }}
+                  >
+                    {nowState
+                      .toLocaleTimeString('he-IL', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false,
+                      })}
+                  </span>
+                </div>
               )}
 
               {/* Time slots */}
@@ -350,7 +382,7 @@ const DayView: React.FC<DayViewProps> = ({
       {showChoice.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-xl shadow-xl p-6 flex flex-col gap-4 min-w-[260px]">
-            <div className="text-lg font-bold text-gray-700 text-center mb-2">מה ברצונך ליצור?</div>
+            <div className="text-lg font-bold text-gray-700 text-center mb-2"></div>
             {/* השאר רק את כפתור תור חדש */}
             <button
               className="w-full py-2 rounded-lg bg-purple-500 text-white font-semibold hover:bg-purple-600 transition"

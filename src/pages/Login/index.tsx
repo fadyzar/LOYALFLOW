@@ -78,6 +78,9 @@ function Login() {
           onSuccess={() => setLoading(false)}
         />
 
+        
+
+
         {/* כפתור התחברות עם Google */}
         <div className="mt-6">
           <button
@@ -93,9 +96,28 @@ function Login() {
             התחברות עם Google
           </button>
         </div>
+        <motion.div 
+  className="flex justify-center mt-2"
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.3 }}
+>
+  <button
+    onClick={() => navigate('/forgot-password')}
+    className="text-sm text-indigo-600 hover:text-indigo-500 transition-colors underline"
+  >
+    שכחת סיסמה?
+  </button>
+</motion.div>
       </motion.div>
+
+      
     </div>
+
+    
   );
+
+  
 }
 
 export default Login;

@@ -935,12 +935,22 @@ function Dashboard() {
                           style={{ filter: 'drop-shadow(0 2px 8px #a78bfa55)' }}
                         />
                       </div>
-                      {/* טקסט הסבר */}
-                      <div className="text-center">
-                        <h2 className="text-xl font-bold text-purple-700 mb-1">ברוך הבא ללוליטה AI 🤖</h2>
-                        <p className="text-gray-700 text-base">
-                          כאן תוכל לייעל את העבודה שלך, לקבל תובנות חכמות ולחסוך זמן בעזרת עוזר בינה מלאכותית מתקדם.
-                        </p>
+                      {/* קיצורי דרך (shortcuts) - עכשיו מיד אחרי האייקון */}
+                      <div className="w-full mt-0">
+                        <div className="grid grid-cols-2 gap-3">
+                          {shortcuts.map((shortcut, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={shortcut.onClick}
+                              className={`flex flex-col items-center justify-center rounded-xl shadow-sm hover:shadow-md transition bg-white hover:bg-gradient-to-br hover:from-purple-100 hover:to-indigo-100 border border-gray-100 p-3 group ${shortcut.bg} pointer-events-auto`}
+                              style={{ minHeight: 80 }}
+                            >
+                              <div className="mb-1">{shortcut.icon}</div>
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-purple-700 transition text-center">{shortcut.label}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       {/* כפתור קריאה לפעולה */}
                       <button
@@ -960,29 +970,6 @@ function Dashboard() {
                           </div>
                         </div>
                       )}
-                      {/* קיצורי דרך (shortcuts) - רק כאן */}
-                      <div className="w-full mt-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          {shortcuts.map((shortcut, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={shortcut.onClick}
-                              className={`flex flex-col items-center justify-center rounded-xl shadow-sm hover:shadow-md transition bg-white hover:bg-gradient-to-br hover:from-purple-100 hover:to-indigo-100 border border-gray-100 p-3 group ${shortcut.bg} pointer-events-auto`}
-                              style={{ minHeight: 80 }}
-                            >
-                              <div className="mb-1">{shortcut.icon}</div>
-                              <span className="text-xs font-semibold text-gray-700 group-hover:text-purple-700 transition text-center">{shortcut.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {/* טיפ למטה */}
-                      <div className="w-full mt-4">
-                        <div className="text-xs text-gray-500 text-center">
-                          טיפ: שדרוג לחשבון פרימיום יאפשר לך גישה מלאה לכל יכולות הבוט!
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </>

@@ -554,6 +554,7 @@ useEffect(() => {
         width: '100vw',
         background: 'linear-gradient(to bottom right, #f0f6ff, #e0e7ff)',
         margin: 0,
+        
         padding: 0,
         overflow: 'hidden',
         position: 'fixed', // תופס את כל המסך
