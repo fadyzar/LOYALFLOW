@@ -80,10 +80,15 @@ export const CalendarView: React.FC<Props> = ({
         </button>
       </div>
 
+      {/* גלילה חלקה: הגדר minHeight בלבד, בלי height/fixed/maxHeight */}
       <div
         ref={containerRef}
-        className="relative h-[1000px] border rounded-lg overflow-hidden bg-gray-50"
-        style={{ position: 'relative', touchAction: 'none' }} // הוסף touchAction: none
+        className="relative border rounded-lg bg-gray-50"
+        style={{
+          position: 'relative',
+          touchAction: 'none',
+          minHeight: `${hours.length * 70}px`, // 14*70=980
+        }}
       >
         {renderNowLine()}
 

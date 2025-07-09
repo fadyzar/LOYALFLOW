@@ -49,6 +49,29 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
+useEffect(() => {
+  // האזנה לאירוע "calendar-goto-today" מה-header
+  const handler = () => {
+    setCurrentDate(new Date());
+    setView('day');
+  };
+  window.addEventListener('calendar-goto-today', handler);
+
+  // האזנה לאירוע "calendar-goto-date" לגלילה אינסופית
+  const dateHandler = (e: any) => {
+    if (e.detail instanceof Date) {
+      setCurrentDate(e.detail);
+      setView('day');
+    }
+  };
+  window.addEventListener('calendar-goto-date', dateHandler);
+
+  return () => {
+    window.removeEventListener('calendar-goto-today', handler);
+    window.removeEventListener('calendar-goto-date', dateHandler);
+  };
+}, [setCurrentDate, setView]);
+
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
@@ -546,65 +569,46 @@ useEffect(() => {
     return minutes >= openMinutes && minutes < closeMinutes;
   };
 
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        height: '100vh',
-        width: '100vw',
-        background: 'linear-gradient(to bottom right, #f0f6ff, #e0e7ff)',
-        margin: 0,
-        
-        padding: 0,
-        overflow: 'hidden',
-        position: 'fixed', // תופס את כל המסך
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-      }}
-    >
-      <CalendarHeader
-        currentDate={currentDate}
-        view={view}
-        onViewChange={setView}
-        onNavigate={navigateDate}
-        onAddEvent={handleAddEvent}
-        staffList={isAdmin ? staffList : []}
-        selectedStaffId={isAdmin ? selectedStaffId : undefined}
-        onStaffSelect={isAdmin ? setSelectedStaffId : undefined}
-      />
+ return (
+    <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-[#f0f6ff] to-[#e0e7ff] overflow-hidden">
+      {/* Header קבוע למעלה */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <CalendarHeader
+          currentDate={currentDate}
+          view={view}
+          onViewChange={setView}
+          onNavigate={navigateDate}
+          onAddEvent={handleAddEvent}
+          staffList={isAdmin ? staffList : []}
+          selectedStaffId={isAdmin ? selectedStaffId : undefined}
+          onStaffSelect={isAdmin ? setSelectedStaffId : undefined}
+        />
+      </div>
+
+      {/* תוכן היומן - גלילה פנימית רק על אזור היומן */}
       <div
-        className="flex-1"
+        className="absolute left-0 right-0"
         style={{
-          minWidth: 0,
-          width: '100vw',
-          maxWidth: '100vw',
-          margin: 0,
-          padding: 0,
-          paddingTop: 68,
-          boxShadow: 'none',
-          height: 'calc(100vh - 68px)',
+          top: 110, // גובה ההדר + הפילטרים
+          bottom: 0,
           overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
         }}
       >
         <div
+          className="w-full h-full"
           style={{
-            flex: 1,
-            minHeight: 0,
             height: '100%',
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
-            margin: 0,
-            padding: 0,
           }}
         >
-          {renderCalendarView()}
+          <div className="pt-4 px-0" style={{ minHeight: '100%' }}>
+            {renderCalendarView()}
+          </div>
         </div>
       </div>
-      {/* הסר כל div נוסף מתחת ליומן */}
+
+      {/* מודל פרטי פגישה */}
       {selectedAppointment && (
         <AppointmentDetails
           appointment={selectedAppointment}
@@ -613,6 +617,7 @@ useEffect(() => {
         />
       )}
 
+      {/* מודל אירוע */}
       <EventModal
         isOpen={showEventModal}
         onClose={() => {

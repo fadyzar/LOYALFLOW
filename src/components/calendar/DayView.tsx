@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { CalendarEvent, DragState } from '../../types/calendar';
 import EventCard from './EventCard';
 import { useNavigate } from 'react-router-dom';
+import { CurrentTimeIndicator } from '../../components/calendar/CurrentTimeIndicator';
 
 interface DayViewProps {
   currentDate: Date;
@@ -152,23 +153,24 @@ const DayView: React.FC<DayViewProps> = ({
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         <div
-          className={`flex w-full overflow-y-auto`}
+          className="flex w-full"
           style={{
-            height: '100vh', // גובה מלא של המסך
-            maxHeight: '100vh', // לא לחרוג מגובה המסך
+            height: '100%',
             WebkitOverflowScrolling: 'touch',
             touchAction: dragState.isDragging ? 'none' : 'auto',
             position: 'relative',
             background: 'transparent',
+            overflowY: 'auto',
+            paddingBottom: 80, // הוסף padding בתחתית כדי לראות את 23:00 מעל ה-bottomnav
           }}
         >
           {/* Time Column */}
-          <div className="w-16 border-r border-gray-200 bg-gray-50 flex-shrink-0 z-10 relative">
-            <div style={{ height: `${CELL_HEIGHT * 24}px` }}>
+          <div className="w-16 border-r border-gray-200 bg-white flex-shrink-0 z-10 relative">
+            <div style={{ height: `${CELL_HEIGHT * 24 + 1}px` }}>
               {hours.map(hour => (
                 <div
                   key={hour}
-                  className="h-20 border-b border-gray-100 flex items-start pt-2 px-2"
+                  className="h-20 border-b border-gray-100 flex items-center justify-center"
                 >
                   <span className="text-sm text-gray-500 font-medium">
                     {hour.toString().padStart(2, '0')}:00
@@ -177,10 +179,9 @@ const DayView: React.FC<DayViewProps> = ({
               ))}
             </div>
           </div>
-
           {/* Day Column */}
           <div className="flex-1 relative" style={{ background: 'transparent' }}>
-            <div style={{ height: `${CELL_HEIGHT * 24}px`, maxHeight: `${CELL_HEIGHT * 24}px`, overflow: 'hidden' }}>
+            <div style={{ height: `${CELL_HEIGHT * 24 + 1}px`, overflow: 'visible' }}>
               {/* Overlay for closed hours */}
               {/* חסום לפני שעת הפתיחה */}
               {earlyHeight > 0 && (
@@ -270,45 +271,48 @@ const DayView: React.FC<DayViewProps> = ({
                 }}
               />
 
-              {/* קו אדום דק לשעה הנוכחית (עם דקות ושניות) */}
-              {getRedLineTop() !== null && (
-                <div
-                  className="absolute left-0 right-0 z-30"
-                  style={{
-                    top: `${getRedLineTop()}px`,
-                    height: '2px',
-                    background: '#ef4444',
-                    borderRadius: '2px',
-                    boxShadow: '0 0 6px 0 #ef4444a0',
-                    transition: 'top 0.2s linear',
-                  }}
-                >
-                  {/* הצג את השעה הנוכחית עם דקות (לדוג' 14:37) - בצד ימין */}
-                  <span
+              {/* קו אדום דק לשעה הנוכחית (עם דקות ושניות) - השעה מוצגת בסרגל השעות בלבד */}
+              {nowState.toDateString() === currentDate.toDateString() && (
+                <>
+                  {/* קו אדום אופקי על כל הרוחב */}
+                  <div
+                    className="absolute left-0 right-0 pointer-events-none"
                     style={{
-                      position: 'absolute',
-                      right: 8, // היה left: 8, עכשיו right: 8
-                      top: -16,
-                      fontSize: 13,
-                      color: '#ef4444',
-                      background: '#fff',
-                      padding: '0 6px',
-                      borderRadius: 6,
-                      fontWeight: 700,
-                      boxShadow: '0 1px 4px #ef44441a',
-                      letterSpacing: '0.03em',
-                      zIndex: 40,
+                      top: `${((nowState.getHours() * 60 + nowState.getMinutes()) / 60) * CELL_HEIGHT}px`,
+                     
                     }}
                   >
-                    {nowState
-                      .toLocaleTimeString('he-IL', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false,
-                      })}
-                  </span>
-                </div>
+                    <div className="absolute -translate-y-1/2 left-0 right-0 flex items-center">
+                      {/* קו אדום דק */}
+                      <div className="flex-1 h-0.5 bg-[#ff3b30] shadow-lg" />
+                    </div>
+                  </div>
+                  {/* עיגול אדום עם השעה - מוצג רק בסרגל השעות (צד ימין, בתוך עמודת השעות) */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      top: `${((nowState.getHours() * 60 + nowState.getMinutes()) / 60) * CELL_HEIGHT}px`,
+                      right: -60,
+                      zIndex: 10,
+                      width: '4rem', // רוחב סרגל השעות (w-16)
+                      
+                    }}
+                  >
+                    <div className="flex items-center justify-start h-0">
+                      <div
+                        className="bg-[#ff3b30] text-white rounded-full px-2.5 py-1 text-[14px] whitespace-nowrap min-w-[3.5rem] text-center shadow-lg"
+                        style={{
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          boxShadow: '0 2px 8px #ff3b3040',
+                          // border: '2px solid #fff', // הסר את המסגרת הלבנה
+                        }}
+                      >
+                        {nowState.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* Time slots */}
