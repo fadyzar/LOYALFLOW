@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { supabase } from '../../../lib/supabase';
@@ -13,6 +12,7 @@ import { CELL_HEIGHT } from './constants';
 import { useStaffHours } from './hooks/useStaffHours';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Suspense } from 'react';
+import { AppointmentDetails } from './components/AppointmentDetails';
 
 export const DayView = React.memo(function DayView({ 
   selectedDate, 
@@ -303,6 +303,21 @@ export const DayView = React.memo(function DayView({
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTimeLineTop = (nowMinutes / 60) * CELL_HEIGHT;
 
+  // --- ניהול תור נבחר ---
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+
+  // --- עדכון תור נבחר אחרי עריכה ---
+  const handleUpdate = (updated?: any) => {
+    if (updated) setSelectedAppointment(updated);
+    // אפשר להוסיף כאן רענון כללי של התורים אם צריך
+  };
+
+  // --- פתח מודל תור בלחיצה על תור ---
+  const handleAppointmentClick = (apt: any) => {
+    setSelectedAppointment(apt);
+    if (onAppointmentClick) onAppointmentClick(apt); // שמור תאימות לאחור
+  };
+
   return (
     <div className="flex flex-col h-full" style={{ minHeight: '100vh', background: calendarBg, position: 'relative' }}>
       {/* Staff Tabs */}
@@ -379,7 +394,7 @@ export const DayView = React.memo(function DayView({
                 staffHours={{ [selectedStaffId]: selectedStaffHours }}
                 appointments={selectedStaffAppointments}
                 selectedDate={selectedDate}
-                onAppointmentClick={onAppointmentClick}
+                onAppointmentClick={handleAppointmentClick} // <-- השתמש בפונקציה המקומית
                 onTimeSlotClick={onTimeSlotClick}
                 // refreshAppointments={refreshAppointments}
               />
@@ -415,6 +430,17 @@ export const DayView = React.memo(function DayView({
           />
         </div>
       </div>
+
+      {/* --- מודל פרטי תור --- */}
+      <AnimatePresence>
+        {selectedAppointment && (
+          <AppointmentDetails
+            appointment={selectedAppointment}
+            onClose={() => setSelectedAppointment(null)}
+            onUpdate={handleUpdate}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 });

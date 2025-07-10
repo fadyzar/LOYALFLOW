@@ -608,9 +608,13 @@ function Appointments() {
       <AnimatePresence>
         {selectedAppointment && (
           <AppointmentDetails
+            key={selectedAppointment?.id + (selectedAppointment?.updated_at || '')}
             appointment={selectedAppointment}
             onClose={() => setSelectedAppointment(null)}
-            onUpdate={() => loadData(businessId)}
+            onUpdate={(updated) => {
+              if (updated) setSelectedAppointment(updated);
+              loadData(businessId);
+            }}
           />
         )}
 
