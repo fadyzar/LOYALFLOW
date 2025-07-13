@@ -80,8 +80,13 @@ const DayView: React.FC<DayViewProps> = ({
     slotDate.setHours(showChoice.hour, 0, 0, 0);
     setShowChoice({ open: false, hour: null });
     if (type === 'appointment') {
-      // נווט ליצירת תור חדש
-      navigate('/appointments/new');
+      // נווט ליצירת תור חדש עם תאריך ושעה נבחרים
+      navigate('/appointments/new', {
+        state: {
+          selectedDate: slotDate,
+          fromCalendar: true,
+        },
+      });
     }
     // הסר אפשרות ל-event
   };

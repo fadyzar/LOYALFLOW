@@ -366,20 +366,21 @@ function CustomerDetails() {
 
   const handleBlock = async () => {
     if (!customer) return;
-     console.log('clicked');
+    console.log('clicked');
 
     try {
-      const isBlocked = customer.metadata?.blocked || false;
-      const newMetadata = {
-        ...customer.metadata,
-        blocked: !isBlocked,
-        blocked_at: isBlocked ? null : new Date().toISOString()
-      };
+      // קרא את is_blocked מהאובייקט customer (ולא מה-type)
+      const isBlocked = (customer as any).is_blocked || false;
 
       const { error } = await supabase
         .from('customers')
         .update({
-          metadata: newMetadata
+          is_blocked: !isBlocked,
+          // עדכן גם metadata.blocked לשמירה על תאימות ישנה
+          metadata: {
+            ...customer.metadata,
+            blocked: !isBlocked
+          }
         })
         .eq('id', customer.id);
 
@@ -391,11 +392,11 @@ function CustomerDetails() {
           : 'הלקוח נחסם בהצלחה'
       );
       if (typeof window !== 'undefined') {
-  window.dispatchEvent(new Event('refresh-customers'));
-}
+        window.dispatchEvent(new Event('refresh-customers'));
+      }
 
-
-      loadCustomer();
+      // טען מחדש את הלקוח כדי לקבל את הערך החדש של is_blocked
+      await loadCustomer();
     } catch (error) {
       console.error('Error blocking customer:', error);
       toast.error('שגיאה בחסימת הלקוח');
@@ -623,7 +624,7 @@ function CustomerDetails() {
 
         {/* Status Badges */}
         <div className="flex flex-wrap gap-2 mt-2">
-          {customer.metadata?.blocked && (
+          {(customer.metadata?.blocked || (customer as any).is_blocked) && (
             <div className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
               <AlertCircle className="h-4 w-4" />
               <span>לקוח חסום</span>

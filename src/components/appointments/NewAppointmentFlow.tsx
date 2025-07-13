@@ -23,6 +23,7 @@ import { supabase } from '../../lib/supabase';
 import { format, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
+import { useLocation } from 'react-router-dom';
 
 interface NewAppointmentFormProps {
   onClose: () => void;
@@ -47,20 +48,7 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [showExistingAppointmentModal, setShowExistingAppointmentModal] = useState(false);
   const [existingAppointment, setExistingAppointment] = useState<ExistingAppointment | null>(null);
-  const [formData, setFormData] = useState({
-    customerId: '',
-    customerName: '',
-    customerPhone: '',
-    customerEmail: '',
-    serviceId: '',
-    serviceName: '',
-    servicePrice: '',
-    serviceDuration: '00:30:00', // ברירת מחדל - 30 דקות
-    staffId: initialStaffId || '',
-    staffName: '',
-    date: initialDate || new Date(),
-    time: '09:00'
-  });
+  const location = useLocation();
 
   // Hide bottom nav when modal is open
   useEffect(() => {
@@ -99,6 +87,26 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
     fetchBusinessId();
   }, [user?.id, business?.id, authLoading]);
 
+  // Use selectedDate from calendar if provided
+  const fromCalendar = location.state?.fromCalendar;
+  const calendarSelectedDate = location.state?.selectedDate ? new Date(location.state.selectedDate) : undefined;
+
+  const [formData, setFormData] = useState({
+    customerId: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    serviceId: '',
+    serviceName: '',
+    servicePrice: '',
+    serviceDuration: '00:30:00', // ברירת מחדל - 30 דקות
+    staffId: initialStaffId || '',
+    staffName: '',
+    date: calendarSelectedDate || initialDate || new Date(),
+    time: '09:00'
+  });
+
+  // Determine if coming from calendar and get selected date
   const checkExistingAppointments = async () => {
     if (!businessId || !formData.customerId) return null;
 
@@ -477,6 +485,7 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
               serviceId={formData.serviceId}
               onChange={handleDateTimeSelect}
               onBack={() => setCurrentStep('service')}
+              disableDateChange={fromCalendar} // <-- add this prop
             />
           )}
 

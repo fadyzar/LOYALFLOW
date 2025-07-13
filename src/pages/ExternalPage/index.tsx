@@ -91,7 +91,7 @@ export default function ExternalPage() {
 
       const { data: customer, error: customerError } = await supabase
         .from('customers')
-        .select('id, name')
+        .select('id, name, is_blocked')
         .eq('business_id', businessData.id)
         .eq('phone', customerPhone)
         .single();
@@ -100,6 +100,15 @@ export default function ExternalPage() {
         localStorage.removeItem('customerPhone');
         setIsAuthenticated(false);
         setCustomerId(null);
+        return;
+      }
+
+      // בדיקת חסימה
+      if (customer.is_blocked) {
+        localStorage.removeItem('customerPhone');
+        setIsAuthenticated(false);
+        setCustomerId(null);
+        toast.error('הגישה שלך נחסמה על ידי העסק. אנא פנה לעסק לפרטים נוספים.');
         return;
       }
 
@@ -264,18 +273,27 @@ export default function ExternalPage() {
     );
   }
 
+  // הגנה: ודא ש-settings.gallery ו-settings.gallery.items קיימים ומערך
+  const galleryItems = Array.isArray(settings?.gallery?.items) ? settings.gallery.items : [];
+  // הגנה: ודא ש-settings.social קיים כאובייקט
+  const social = typeof settings?.social === 'object' && settings.social !== null ? settings.social : {};
+  // הגנה: ודא ש-settings.about קיים ואובייקט ויש לו content
+  const aboutContent = typeof settings?.about === 'object' && settings.about && typeof settings.about.content === 'string'
+    ? settings.about.content
+    : '';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="relative h-48">
-        {settings.gallery.items[0] ? (
+        {galleryItems[0] ? (
           <>
             <div 
               className="w-full h-full cursor-pointer"
-              onClick={() => settings.gallery.items.length > 0 && setShowGallery(true)}
+              onClick={() => galleryItems.length > 0 && setShowGallery(true)}
             >
-              {settings.gallery.items[0].type === 'video' ? (
+              {galleryItems[0].type === 'video' ? (
                 <video
-                  src={settings.gallery.items[0].url}
+                  src={galleryItems[0].url}
                   className="w-full h-full object-cover"
                   autoPlay
                   muted
@@ -284,15 +302,15 @@ export default function ExternalPage() {
                 />
               ) : (
                 <img 
-                  src={settings.gallery.items[0].url}
+                  src={galleryItems[0].url}
                   alt=""
                   className="w-full h-full object-cover"
                 />
               )}
             </div>
-            {settings.gallery.items.length > 1 && (
+            {galleryItems.length > 1 && (
               <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/50 rounded-full text-white text-xs">
-                {settings.gallery.items.length} תמונות
+                {galleryItems.length} תמונות
               </div>
             )}
           </>
@@ -416,7 +434,7 @@ export default function ExternalPage() {
             <Phone className="h-6 w-6 text-blue-600" />
           </motion.button>
 
-          {settings.social.whatsapp && (
+          {social.whatsapp && (
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
@@ -445,7 +463,7 @@ export default function ExternalPage() {
             <Clock className="h-6 w-6 text-amber-600" />
           </motion.button>
 
-          {settings.social.instagram && (
+          {social.instagram && (
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
@@ -464,7 +482,7 @@ export default function ExternalPage() {
             className="bg-gray-50 rounded-2xl p-6"
           >
             <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {settings.about.content}
+              {aboutContent}
             </p>
           </motion.div>
         </div>
@@ -536,7 +554,7 @@ export default function ExternalPage() {
                 <X className="h-6 w-6" />
               </button>
 
-              {settings.gallery.items.length > 1 && (
+              {galleryItems.length > 1 && (
                 <>
                   <button
                     onClick={handlePrevImage}
@@ -554,9 +572,9 @@ export default function ExternalPage() {
               )}
 
               <div className="w-full h-full flex items-center justify-center p-4">
-                {settings.gallery.items[currentImageIndex]?.type === 'video' ? (
+                {galleryItems[currentImageIndex]?.type === 'video' ? (
                   <video
-                    src={settings.gallery.items[currentImageIndex].url}
+                    src={galleryItems[currentImageIndex].url}
                     className="max-w-full max-h-full object-contain"
                     controls
                     autoPlay
@@ -564,16 +582,16 @@ export default function ExternalPage() {
                   />
                 ) : (
                   <img
-                    src={settings.gallery.items[currentImageIndex].url}
+                    src={galleryItems[currentImageIndex]?.url}
                     alt=""
                     className="max-w-full max-h-full object-contain"
                   />
                 )}
               </div>
 
-              {settings.gallery.items.length > 1 && (
+              {galleryItems.length > 1 && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/50 rounded-full text-white text-sm">
-                  {currentImageIndex + 1} / {settings.gallery.items.length}
+                  {currentImageIndex + 1} / {galleryItems.length}
                 </div>
               )}
             </div>
@@ -713,3 +731,28 @@ export default function ExternalPage() {
     </div>
   );
 }
+
+// שגיאת האייקון:
+  // Error while trying to use the following icon from the Manifest: https://delightful-truffle-340095.netlify.app/pwa-192x192.png (Download error or resource isn't a valid image)
+// המשמעות: הדפדפן לא מצליח להוריד או לקרוא את האייקון של ה־PWA. זה לא קשור ל־OTP או ל־Edge Function.
+// הפתרון: ודא שהקובץ קיים בכתובת הזו ושהוא קובץ תמונה תקין (PNG בגודל 192x192).
+
+// שגיאת ה־500:
+  // POST https://nkuqcyelxgyihrxyvitb.supabase.co/functions/v1/send_otp 500 (Internal Server Error)
+// המשמעות: יש שגיאה ב־Edge Function שלך (send_otp). זה לא קשור ל־React.
+// הפתרון: בדוק את הלוגים של הפונקציה ב־Supabase Dashboard > Edge Functions > send_otp > Logs.
+// חפש הודעות שגיאה כמו "Missing Twilio environment variables" או "Invalid phone format" או תשובת Twilio.
+// תקן בהתאם למה שמופיע בלוגים.
+
+// שים לב: אין כאן שום לוגיקת שליחת קוד OTP.
+// כל הקוד כאן עוסק רק בהתחברות, בדיקת חסימה, הצגת תורים, ועוד.
+// אם אתה לא מצליח לשמור את הקובץ, ייתכן שיש:
+// 1. בעיית הרשאות בתיקיה.
+// 2. בעיה בעורך (VSCode/IDE) – נסה לסגור ולפתוח מחדש.
+// 3. קובץ פתוח בתהליך אחר.
+// 4. בעיה בדיסק (מלא/נעול).
+// 5. תו לא חוקי או תו בלתי נראה בקובץ (נסה להעתיק את כל התוכן לקובץ חדש ולשמור).
+
+// נסה לשמור קובץ טקסט פשוט בתיקיה הזו כדי לבדוק הרשאות.
+// אם הבעיה נמשכת – נסה לשמור את הקובץ בשם אחר או בתיקיה אחרת.
+// אם יש הודעת שגיאה – העתק אותה לכאן ואוכל לעזור ממוקד.

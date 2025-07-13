@@ -88,11 +88,16 @@ function Login() {
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png"
-              alt="Google"
-              className="w-5 h-5"
-            />
+            {/* אייקון גוגל מודרני */}
+            <svg width="22" height="22" viewBox="0 0 48 48" className="mr-1" xmlns="http://www.w3.org/2000/svg">
+              <g>
+                <path fill="#4285F4" d="M24 9.5c3.54 0 6.73 1.22 9.24 3.22l6.92-6.92C36.42 2.34 30.61 0 24 0 14.82 0 6.73 5.48 2.69 13.44l8.06 6.27C12.7 13.13 17.89 9.5 24 9.5z"/>
+                <path fill="#34A853" d="M46.1 24.5c0-1.64-.15-3.22-.42-4.75H24v9.01h12.44c-.54 2.9-2.17 5.36-4.62 7.03l7.19 5.59C43.91 37.13 46.1 31.34 46.1 24.5z"/>
+                <path fill="#FBBC05" d="M10.75 28.71c-1.01-2.99-1.01-6.23 0-9.22l-8.06-6.27C.64 17.52 0 20.68 0 24c0 3.32.64 6.48 1.81 9.48l8.94-4.77z"/>
+                <path fill="#EA4335" d="M24 48c6.61 0 12.42-2.17 16.55-5.93l-7.19-5.59c-2.01 1.36-4.57 2.17-7.36 2.17-6.11 0-11.3-3.63-13.25-8.71l-8.94 4.77C6.73 42.52 14.82 48 24 48z"/>
+                <path fill="none" d="M0 0h48v48H0z"/>
+              </g>
+            </svg>
             התחברות עם Google
           </button>
         </div>

@@ -22,9 +22,14 @@ export function LoginForm({
   onPasswordChange,
   onSuccess 
 }: LoginFormProps) {
+  // בדוק שהקומפוננטה בכלל נטענת
+  React.useEffect(() => {
+    console.log('[LoginForm] Mounted');
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast.error('נא למלא את כל השדות');
       return;
@@ -45,7 +50,7 @@ export function LoginForm({
       }
     } catch (error: any) {
       let errorMessage = 'שגיאה בהתחברות';
-      if (error.message.includes('Invalid login credentials')) {
+      if (error.message && error.message.includes('Invalid login credentials')) {
         errorMessage = 'שם משתמש או סיסמה שגויים';
       }
       toast.error(errorMessage);
