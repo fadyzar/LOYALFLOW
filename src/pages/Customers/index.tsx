@@ -144,6 +144,20 @@ function Customers() {
 }
   };
 
+  const handleImportComplete = async () => {
+    // רענון רשימת הלקוחות מיד לאחר ייבוא
+    if (businessId) {
+      await loadCustomers(businessId);
+    }
+    toast.success('הייבוא הסתיים בהצלחה!');
+    setImportModal(false);
+
+    // Open customer card for the first imported customer
+    if (normalized.length > 0 && normalized[0].id) {
+      navigate(`/customers/${normalized[0].id}`);
+    }
+  };
+
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = 
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -215,32 +229,41 @@ function Customers() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-gray-400" />
-                  <select
-                    value={loyaltyFilter}
-                    onChange={(e) => setLoyaltyFilter(e.target.value)}
-                    className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    disabled={!loyaltyEnabled}
-                  >
-                    <option value="all">כל הרמות</option>
-                    <option value="vip">VIP</option>
-                    <option value="diamond">יהלום</option>
-                    <option value="gold">זהב</option>
-                    <option value="silver">כסף</option>
-                    <option value="bronze">ברונזה</option>
-                  </select>
+                  <Filter className="h-4 w-4 text-indigo-500" />
+                  <div className="relative">
+                    <select
+                      value={loyaltyFilter}
+                      onChange={(e) => setLoyaltyFilter(e.target.value)}
+                      className="appearance-none p-2 pl-4 pr-10 rounded-xl bg-gradient-to-r from-indigo-50 to-white text-indigo-700 font-semibold shadow focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                      disabled={!loyaltyEnabled}
+                      style={{
+                        minWidth: 130,
+                        fontSize: '1rem',
+                        borderRadius: 16,
+                        boxShadow: '0 2px 8px #6366f11a',
+                        outline: 'none',
+                        backgroundImage: 'linear-gradient(90deg,#eef2ff 0%,#fff 100%)',
+                        border: 'none', // הסר את המסגרת
+                      }}
+                    >
+                      <option value="all">כל הרמות</option>
+                      <option value="vip">VIP</option>
+                      <option value="diamond">יהלום</option>
+                      <option value="gold">זהב</option>
+                      <option value="silver">כסף</option>
+                      <option value="bronze">ברונזה</option>
+                    </select>
+                    {/* חץ מודרני ל-dropdown */}
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M5 7l4 4 4-4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </span>
+                  </div>
                 </div>
-
+                {/* הצג רק חסומים, הסר נקודות ויהלומים */}
                 {loyaltyEnabled && (
                   <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 text-amber-500" />
-                      <span>{customers.reduce((sum, c) => sum + c.points, 0)} נקודות</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Diamond className="h-4 w-4 text-blue-500" />
-                      <span>{customers.reduce((sum, c) => sum + c.diamonds, 0)} יהלומים</span>
-                    </div>
                     <div className="flex items-center gap-1">
                       <Ban className="h-4 w-4 text-red-500" />
                       <span>
@@ -306,10 +329,7 @@ function Customers() {
             {importModal && businessId && (
               <ImportCustomersModal
                 onClose={() => setImportModal(false)}
-                onImportComplete={() => {
-                  setImportModal(false);
-                  loadCustomers(businessId);
-                }}
+                onImportComplete={handleImportComplete}
                 businessId={businessId}
               />
             )}

@@ -838,6 +838,12 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                       currentAppointment.services?.name_he ||
                       currentAppointment.service_name}
                   </span>
+                  {/* הצגת מחיר השירות בצורה מודרנית */}
+                  {typeof currentAppointment.services?.price === 'number' && (
+                    <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs shadow">
+                      ₪{currentAppointment.services.price}
+                    </span>
+                  )}
                 </div>
 
                 {/* Phone */}
@@ -879,14 +885,10 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                       min={1}
                       value={durationInput === 0 ? '' : durationInput}
                       onChange={(e) => {
-                        // אם המשתמש מוחק הכל, תן ערך ריק (ולא 0)
                         const val = e.target.value === '' ? '' : Number(e.target.value);
                         setDurationInput(val as any);
                       }}
-                      onFocus={e => {
-                        // בכניסה לשדה, סמן את כל הטקסט כדי שהמשתמש יוכל להקליד ישר
-                        e.target.select();
-                      }}
+                      onFocus={e => e.target.select()}
                       onBlur={handleDurationSave}
                       className="w-20 p-1 border border-gray-300 rounded text-right"
                       autoFocus
@@ -896,10 +898,15 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                   ) : (
                     <span>
                       {(() => {
-                        if (pendingChanges.duration && pendingChanges.duration > 0) return pendingChanges.duration + ' דקות';
-                        if (durationInput && durationInput > 0) return durationInput + ' דקות';
-                        if (currentAppointment.duration && currentAppointment.duration > 0) return currentAppointment.duration + ' דקות';
-                        if (currentAppointment.services?.duration && currentAppointment.services.duration > 0) return currentAppointment.services.duration + ' דקות';
+                        // תמיד תעדיף את ה־duration מתוך services אם קיים
+                        if (typeof currentAppointment.services?.duration === 'number' && currentAppointment.services.duration > 0)
+                          return currentAppointment.services.duration + ' דקות';
+                        if (pendingChanges.duration && pendingChanges.duration > 0)
+                          return pendingChanges.duration + ' דקות';
+                        if (durationInput && durationInput > 0)
+                          return durationInput + ' דקות';
+                        if (currentAppointment.duration && currentAppointment.duration > 0)
+                          return currentAppointment.duration + ' דקות';
                         if (currentAppointment.start_time && currentAppointment.end_time) {
                           const diff = differenceInMinutes(parseISO(currentAppointment.end_time), parseISO(currentAppointment.start_time));
                           if (diff > 0) return diff + ' דקות';
@@ -1331,10 +1338,9 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-semibold mb-4">אישור ביטול תור</h3>
-                <p className="text-sm text-gray-500 mb-6">
-                  האם אתה בטוח שברצונך לבטל את התור הזה? פעולה זו לא ניתן לשינוי.
-                </p>
-
+                <div className="mb-6">
+                  האם אתה בטוח שברצונך לבטל את התור הזה? פעולה זו אינה ניתנת לשינוי.
+                </div>
                 <div className="flex justify-end gap-4">
                   <button
                     onClick={() => setShowCancelConfirm(false)}
