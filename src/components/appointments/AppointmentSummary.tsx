@@ -56,41 +56,14 @@ interface Benefits {
   };
 }
 
-function StickyStaffBar({ staffName }: { staffName: string }) {
-  return (
-    <div
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        background: 'linear-gradient(90deg, #f0f4ff 0%, #fff 100%)',
-        borderBottom: '1px solid #e0e7ef',
-        boxShadow: '0 2px 12px 0 #e0e7ef22',
-        minHeight: 48,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 700,
-        fontSize: 20,
-        color: '#2563eb',
-        letterSpacing: '0.02em',
-        borderRadius: '0 0 18px 18px',
-        marginBottom: 12
-      }}
-    >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <User style={{ width: 22, height: 22, color: '#2563eb', marginLeft: 6 }} />
-        <span>איש צוות:</span>
-        <span style={{ fontWeight: 800 }}>{staffName}</span>
-      </span>
-    </div>
-  );
-}
-
 export function AppointmentSummary({ data, onEdit, onConfirm, loading }: AppointmentSummaryProps) {
   const [benefits, setBenefits] = useState<Benefits | null>(null);
   const [benefitsLoading, setBenefitsLoading] = useState(false);
   const [benefitsError, setBenefitsError] = useState<string | null>(null);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean | null>(null);
+
+  // שלוף businessId מהמשתמש אם לא קיים ב-data
+  const [resolvedBusinessId, setResolvedBusinessId] = useState<string | null>(null);
 
   // חילוץ משך זמן השירות
   const getDurationMinutes = (duration: string): number => {
@@ -157,6 +130,86 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
   };
 
   useEffect(() => {
+    async function resolveBusinessId() {
+      if (data.businessId && data.businessId !== 'undefined' && data.businessId !== null && data.businessId !== '') {
+        setResolvedBusinessId(data.businessId);
+        return;
+      }
+      // נסה לשלוף מהמשתמש
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('business_id')
+          .eq('id', user.id)
+          .single();
+        if (userData?.business_id) {
+          setResolvedBusinessId(userData.business_id);
+          return;
+        }
+      }
+      setResolvedBusinessId(null);
+    }
+    resolveBusinessId();
+  }, [data.businessId]);
+
+  useEffect(() => {
+    // בדוק האם businessId מועבר נכון
+    if (
+      !resolvedBusinessId ||
+      resolvedBusinessId === 'undefined' ||
+      resolvedBusinessId === null ||
+      resolvedBusinessId === ''
+    ) {
+      setLoyaltyEnabled(false);
+      console.log('Loyalty program is OFF (no valid businessId)', resolvedBusinessId);
+      return;
+    }
+
+    // הדפס businessId כדי לוודא מה באמת עובר
+    console.log('AppointmentSummary: businessId =', resolvedBusinessId);
+
+    async function fetchLoyaltyEnabled() {
+      const { data: businessData, error } = await supabase
+        .from('businesses')
+        .select('settings')
+        .eq('id', resolvedBusinessId)
+        .single();
+
+      console.log('settings from DB:', businessData?.settings, 'error:', error);
+
+      if (error) {
+        setLoyaltyEnabled(false);
+        console.log('Loyalty program is OFF (supabase error)', error, resolvedBusinessId);
+        return;
+      }
+
+      let enabled: boolean | undefined;
+      if (
+        businessData?.settings?.loyalty &&
+        typeof businessData.settings.loyalty.enabled === 'boolean'
+      ) {
+        enabled = businessData.settings.loyalty.enabled;
+        console.log('settings.loyalty.enabled:', enabled);
+      }
+      else if (
+        typeof businessData?.settings?.loyalty_enabled === 'boolean'
+      ) {
+        enabled = businessData.settings.loyalty_enabled;
+        console.log('settings.loyalty_enabled:', enabled);
+      }
+      setLoyaltyEnabled(enabled ?? false);
+      console.log('Loyalty program is', enabled === true ? 'ON' : 'OFF', businessData?.settings, resolvedBusinessId);
+    }
+    fetchLoyaltyEnabled();
+  }, [resolvedBusinessId]);
+
+  useEffect(() => {
+    if (loyaltyEnabled === false) {
+      setBenefits(null);
+      setBenefitsLoading(false);
+      return;
+    }
     const calculateBenefits = async () => {
       if (!data.customerId || !data.serviceId || !data.staffId) return;
 
@@ -179,14 +232,10 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .eq('id', data.customerId as unknown as string)
           .single();
 
-        console.log('customerData:', customerData);
-
         if (!customerData) return;
 
         // Get loyalty settings
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('user:', user);
-
         if (!user) return;
 
         const { data: userData } = await supabase
@@ -194,8 +243,6 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .select('business_id')
           .eq('id', user.id)
           .single();
-
-        console.log('userData:', userData);
 
         if (!userData?.business_id) return;
 
@@ -205,15 +252,10 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .eq('id', userData.business_id)
           .single();
 
-        console.log('businessData:', businessData);
-
         if (!businessData?.loyalty) return;
 
         const loyaltyLevel = customerData.loyalty_level;
-        console.log('loyaltyLevel:', loyaltyLevel);
-
-        const loyaltyBenefits = (businessData.loyalty as unknown as BusinessData['loyalty']).levels[loyaltyLevel]?.benefits;
-        console.log('loyaltyBenefits:', loyaltyBenefits);
+        const loyaltyBenefits = (businessData.loyalty as unknown as BusinessData['loyalty']).levels[loyaltyLevel].benefits;
 
         // Calculate benefits
         let finalPrice = basePrice;
@@ -263,169 +305,160 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
     };
 
     calculateBenefits();
-  }, [data.customerId, data.serviceId, data.staffId, data.date, data.businessId]);
+  }, [
+    data.customerId,
+    data.serviceId,
+    data.staffId,
+    data.date,
+    resolvedBusinessId,
+    loyaltyEnabled
+  ]);
 
   return (
-    <div className="space-y-6" style={{ maxWidth: 420, margin: '0 auto', padding: 16 }}>
-      {/* Sticky Staff Bar */}
-      <StickyStaffBar staffName={data.staffName} />
-
+    <div className="space-y-8 max-w-xl mx-auto px-4 py-8 bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-3xl shadow-2xl border border-gray-100">
       {/* Customer Info */}
-      <div className="bg-gradient-to-br from-blue-50 to-white p-4 rounded-2xl shadow-sm border border-blue-100">
-        <div className="flex items-center gap-3 mb-2">
-          <User className="h-5 w-5 text-blue-400" />
-          <h3 className="font-semibold text-blue-700">פרטי לקוח</h3>
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow flex items-center gap-4 p-6 border border-gray-200">
+        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100">
+          <User className="h-7 w-7 text-indigo-600" />
         </div>
-        <div className="space-y-1">
-          <p className="font-semibold text-gray-800">{data.customerName}</p>
-          <p className="text-sm text-gray-500">{data.customerPhone}</p>
-          {data.customerEmail && (
-            <p className="text-sm text-gray-400">{data.customerEmail}</p>
-          )}
+        <div>
+          <h3 className="text-xl font-bold text-indigo-700 mb-1">{data.customerName}</h3>
+          <div className="flex items-center gap-3 text-sm text-gray-500">
+            <span>{data.customerPhone}</span>
+            {data.customerEmail && (
+              <span className="text-gray-400">{data.customerEmail}</span>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Service Details */}
-      <div className="bg-gradient-to-br from-indigo-50 to-white p-4 rounded-2xl shadow-sm border border-indigo-100">
-        <div className="flex items-center gap-3 mb-2">
-          <Scissors className="h-5 w-5 text-indigo-400" />
-          <h3 className="font-semibold text-indigo-700">פרטי שירות</h3>
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow flex items-center gap-6 p-6 border border-gray-200">
+        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100">
+          <Scissors className="h-7 w-7 text-indigo-600" />
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold">{data.serviceName}</span>
-            <span className="font-bold text-indigo-600">₪{data.servicePrice}</span>
-          </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-indigo-700 mb-1">{data.serviceName}</h3>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Clock className="h-4 w-4" />
             <span>{durationMinutes} דקות</span>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-bold text-indigo-600">₪{data.servicePrice}</span>
+        </div>
       </div>
 
       {/* Benefits */}
-      {benefitsLoading && !benefits && (
-        <div className="bg-gray-50 p-4 rounded-2xl shadow border border-blue-100">
-          <div className="flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-            <span className="mr-2">טוען הטבות...</span>
+      {loyaltyEnabled ? (
+        <div className="bg-gradient-to-br from-green-50 via-white to-green-100 rounded-2xl shadow border border-green-100 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Check className="h-6 w-6 text-green-600" />
+            <h3 className="text-lg font-bold text-green-700">הטבות</h3>
           </div>
-        </div>
-      )}
-
-      {benefitsError && (
-        <div className="bg-red-50 p-4 rounded-2xl text-red-600 border border-red-200 shadow">
-          {benefitsError}
-        </div>
-      )}
-
-      <div className="bg-gradient-to-br from-green-50 to-white p-4 rounded-2xl shadow-sm border border-green-100">
-        <div className="flex items-center gap-3 mb-2">
-          <h3 className="font-semibold text-green-700">הטבות</h3>
-        </div>
-        <div className="space-y-2">
-          {!benefits ? (
-            <>
-              <div className="text-gray-500 text-center py-4">לא נמצאו הטבות</div>
-              <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
-                <span>מחיר סופי:</span>
-                <span className="text-green-700">₪{data.servicePrice}</span>
+          {benefitsLoading && (
+            <div className="flex items-center justify-center py-6">
+              <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+              <span className="mr-2 text-green-600 font-semibold">טוען הטבות...</span>
+            </div>
+          )}
+          {benefitsError && (
+            <div className="bg-red-50 p-4 rounded-xl text-red-600 text-center font-bold">
+              {benefitsError}
+            </div>
+          )}
+          {benefits && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-lg">
+                <span className="font-medium text-gray-700">מחיר בסיס:</span>
+                <span className="font-bold text-green-700">₪{benefits.basePrice}</span>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <span>מחיר בסיס:</span>
-                <span className="font-semibold">₪{benefits.basePrice}</span>
-              </div>
-              
               {benefits.loyaltyDiscount > 0 && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleBenefit('loyaltyDiscount')}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
                         benefits.selectedBenefits.loyaltyDiscount
                           ? 'bg-green-600 border-green-600'
                           : 'border-gray-300'
                       }`}
                     >
                       {benefits.selectedBenefits.loyaltyDiscount && (
-                        <Check className="w-3 h-3 text-white" />
+                        <Check className="w-4 h-4 text-white" />
                       )}
                     </button>
-                    <span>הנחת {benefits.loyaltyLevel}:</span>
+                    <span className="font-medium text-green-700">הנחת {benefits.loyaltyLevel}</span>
                   </div>
                   <span className="text-green-600 font-bold">- ₪{benefits.loyaltyDiscount}</span>
                 </div>
               )}
-              
               {benefits.isFreeAppointment && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleBenefit('freeAppointment')}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
                         benefits.selectedBenefits.freeAppointment
                           ? 'bg-green-600 border-green-600'
                           : 'border-gray-300'
                       }`}
                     >
                       {benefits.selectedBenefits.freeAppointment && (
-                        <Check className="w-3 h-3 text-white" />
+                        <Check className="w-4 h-4 text-white" />
                       )}
                     </button>
-                    <span>תור חינם (הטבת {benefits.loyaltyLevel}):</span>
+                    <span className="font-medium text-green-700">תור חינם ({benefits.loyaltyLevel})</span>
                   </div>
                   <span className="text-green-600 font-bold">תור חינם!</span>
                 </div>
               )}
-              
-              <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
+              <div className="flex items-center justify-between font-bold text-xl pt-4 border-t border-green-200">
                 <span>מחיר סופי:</span>
                 <span className="text-green-700">₪{benefits.finalPrice}</span>
               </div>
-            </>
+            </div>
           )}
         </div>
-      </div>
+      ) : null}
 
       {/* Date and Time */}
-      <div className="bg-gradient-to-br from-yellow-50 to-white p-4 rounded-2xl shadow-sm border border-yellow-100">
-        <div className="flex items-center gap-3 mb-2">
-          <Calendar className="h-5 w-5 text-yellow-400" />
-          <h3 className="font-semibold text-yellow-700">מועד ואיש צוות</h3>
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow flex items-center gap-6 p-6 border border-gray-200">
+        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-yellow-100">
+          <Calendar className="h-7 w-7 text-yellow-600" />
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">תאריך</span>
-            <span className="font-semibold">{format(data.date, 'EEEE, d בMMMM', { locale: he })}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">שעה</span>
-            <span className="font-semibold">
-              {format(data.date, 'HH:mm')} - {format(endTime, 'HH:mm')}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">איש צוות</span>
-            <span className="font-semibold">{data.staffName}</span>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-yellow-700 mb-1">מועד ואיש צוות</h3>
+          <div className="flex flex-col gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">תאריך</span>
+              <span className="font-semibold text-gray-700">{format(data.date, 'EEEE, d בMMMM', { locale: he })}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">שעה</span>
+              <span className="font-semibold text-gray-700">
+                {format(data.date, 'HH:mm')} - {format(endTime, 'HH:mm')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">איש צוות</span>
+              <span className="font-semibold text-gray-700">{data.staffName}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Confirm Button */}
       <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
         onClick={onConfirm}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-2xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg"
-        style={{ marginTop: 12 }}
+        className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-2xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xl mt-4"
       >
         {loading ? (
           <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
             <span>קובע תור...</span>
           </>
         ) : (

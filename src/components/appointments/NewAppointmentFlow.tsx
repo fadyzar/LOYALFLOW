@@ -24,6 +24,7 @@ import { format, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
+import { useLoyaltySettings } from '../../hooks/useLoyaltySettings';
 
 interface NewAppointmentFormProps {
   onClose: () => void;
@@ -43,6 +44,7 @@ interface ExistingAppointment {
 
 export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialStaffId }: NewAppointmentFormProps) {
   const { user, business, loading: authLoading } = useAuth();
+  const { isLoyaltyEnabled } = useLoyaltySettings();
   const [currentStep, setCurrentStep] = useState<Step>('customer');
   const [loading, setLoading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
@@ -505,6 +507,7 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
                 onEdit={setCurrentStep}
                 onConfirm={handleAppointmentCreate}
                 loading={loading}
+                loyaltyEnabled={isLoyaltyEnabled} // הוסף prop שמכבה את ההטבות אם מסלול הנאמנות כבוי
               />
             </div>
           )}

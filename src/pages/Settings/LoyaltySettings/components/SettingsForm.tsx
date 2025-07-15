@@ -121,22 +121,35 @@ export function SettingsForm({ settings, onSave }: SettingsFormProps) {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             כמה יהלומים נדרשים למעמד זה
           </label>
-          <input
-            type="number"
-            value={formData.levels[level].diamonds_required}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              levels: {
-                ...prev.levels,
-                [level]: {
-                  ...prev.levels[level],
-                  diamonds_required: parseInt(e.target.value)
+          {level === 'silver' ? (
+            <>
+              <input
+                type="number"
+                value={0}
+                disabled
+                className="w-full p-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                min="0"
+              />
+              <span className="text-xs text-gray-400 mt-1 block">ערך קבוע: 0</span>
+            </>
+          ) : (
+            <input
+              type="number"
+              value={formData.levels[level].diamonds_required}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                levels: {
+                  ...prev.levels,
+                  [level]: {
+                    ...prev.levels[level],
+                    diamonds_required: parseInt(e.target.value)
+                  }
                 }
-              }
-            }))}
-            className="w-full p-2 border border-gray-300 rounded-lg"
-            min="0"
-          />
+              }))}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+              min="0"
+            />
+          )}
         </div>
 
         {editingLevel === level && (
