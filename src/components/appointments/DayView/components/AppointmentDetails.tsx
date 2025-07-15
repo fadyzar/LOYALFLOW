@@ -146,7 +146,91 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
     setCurrentAppointment(appointment);
     setSelectedTime(format(parseISO(appointment.start_time), 'HH:mm'));
     setSelectedDate(appointment.start_time.split('T')[0]);
-    setDurationInput(appointment.duration ?? appointment.services?.duration ?? 0);
+
+    // הדפסת כל הערכים בקונסול להבנה
+    console.log('appointment:', appointment);
+    console.log('appointment.duration:', appointment.duration);
+    console.log('appointment.services?.duration:', appointment.services?.duration);
+    console.log('appointment.staff_id:', appointment.staff_id);
+    console.log('appointment.service_id:', appointment.service_id);
+
+    // סדר עדיפויות: staff_services.duration > services.duration > appointment.duration
+    async function fetchInitialDuration() {
+      let duration = 0;
+      // נסה למשוך מהצוות
+      if (appointment.staff_id && appointment.service_id) {
+        const { data: staffService, error } = await supabase
+          .from('staff_services')
+          .select('duration')
+          .eq('staff_id', appointment.staff_id)
+          .eq('service_id', appointment.service_id)
+          .single();
+        console.log('staff_services:', staffService, 'error:', error);
+        // אם duration הוא מחרוזת זמן (למשל "00:40:00" או "00:00:40"), המר למספר דקות
+        if (!error && staffService && staffService.duration) {
+          let raw = staffService.duration;
+          if (typeof raw === 'string') {
+            // תומך גם בפורמט "00:40:00" וגם "00:00:40"
+            const parts = raw.split(':').map(Number);
+            // אם יש 3 חלקים: HH:mm:ss
+            if (parts.length === 3) {
+              duration = parts[0] * 60 + parts[1]; // שעות לדקות + דקות
+              // אם יש רק שניות, תתעלם
+            } else if (parts.length === 2) {
+              duration = parts[0] * 60 + parts[1];
+            } else if (parts.length === 1) {
+              duration = parts[0];
+            }
+            // הגנה: אם duration קטן מ-1, קח את ההפרש בין שעת התחלה לשעת סיום
+            if (duration < 1 && appointment.start_time && appointment.end_time) {
+              const start = parseISO(appointment.start_time);
+              const end = parseISO(appointment.end_time);
+              duration = differenceInMinutes(end, start);
+              console.log('fallback to diff:', duration);
+            }
+          } else if (typeof raw === 'number') {
+            duration = raw;
+          }
+        }
+      }
+      // אם לא קיים אצל הצוות, נסה מהשירות
+      if (!duration && appointment.services?.duration) {
+        let raw = appointment.services.duration;
+        if (typeof raw === 'string') {
+          const parts = raw.split(':').map(Number);
+          if (parts.length === 3) {
+            duration = parts[0] * 60 + parts[1];
+          } else if (parts.length === 2) {
+            duration = parts[0] * 60 + parts[1];
+          } else if (parts.length === 1) {
+            duration = parts[0];
+          }
+          if (duration < 1 && appointment.start_time && appointment.end_time) {
+            const start = parseISO(appointment.start_time);
+            const end = parseISO(appointment.end_time);
+            duration = differenceInMinutes(end, start);
+            console.log('fallback to diff:', duration);
+          }
+        } else if (typeof raw === 'number') {
+          duration = raw;
+        }
+      }
+      // אם לא קיים גם אצל השירות, קח מהתור עצמו
+      if (!duration && typeof appointment.duration === 'number' && appointment.duration > 0) {
+        duration = appointment.duration;
+      }
+      // אם עדיין לא קיים, קח את ההפרש בין שעת התחלה לשעת סיום
+      if (!duration && appointment.start_time && appointment.end_time) {
+        const start = parseISO(appointment.start_time);
+        const end = parseISO(appointment.end_time);
+        duration = differenceInMinutes(end, start);
+        console.log('final fallback to diff:', duration);
+      }
+      console.log('duration chosen:', duration);
+      setDurationInput(duration); // <-- כאן תעדכן את ה־durationInput לערך הנבחר
+    }
+    fetchInitialDuration();
+
     setSelectedEndTime(null);
     // אפשר גם לאפס pendingChanges כאן אם אתה רוצה שהשדות יתאפסו אחרי עדכון
     // setPendingChanges({});
@@ -668,12 +752,13 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
       newStatus: 'canceled',
       reason: 'ביטול ידני'
     });
-    
+
     if (success) {
+      // במקום לסגור את המודל מיד, תעדכן את התור ותשאיר אותו מוצג
       onUpdate();
-      onClose();
+      // אל תסגור את המודל אוטומטית
+      // onClose(); <-- הסר שורה זו
     }
-    
     setShowCancelConfirm(false);
   };
 
@@ -709,8 +794,8 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
         setCurrentAppointment(appointmentData);
         setSelectedTime(format(parseISO(appointmentData.start_time), 'HH:mm'));
         setSelectedDate(appointmentData.start_time.split('T')[0]);
-        setDurationInput(appointmentData.duration ?? appointmentData.services?.duration ?? 0);
         setSelectedEndTime(null);
+        // אל תעדכן כאן את durationInput!
       }
       const { data: logsData } = await supabase
         .from('appointment_logs')
@@ -1060,22 +1145,7 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                     />
                   ) : (
                     <span>
-                      {(() => {
-                        // תמיד תעדיף את ה־duration מתוך services אם קיים
-                        if (typeof currentAppointment.services?.duration === 'number' && currentAppointment.services.duration > 0)
-                          return currentAppointment.services.duration + ' דקות';
-                        if (pendingChanges.duration && pendingChanges.duration > 0)
-                          return pendingChanges.duration + ' דקות';
-                        if (durationInput && durationInput > 0)
-                          return durationInput + ' דקות';
-                        if (currentAppointment.duration && currentAppointment.duration > 0)
-                          return currentAppointment.duration + ' דקות';
-                        if (currentAppointment.start_time && currentAppointment.end_time) {
-                          const diff = differenceInMinutes(parseISO(currentAppointment.end_time), parseISO(currentAppointment.start_time));
-                          if (diff > 0) return diff + ' דקות';
-                        }
-                        return '';
-                      })()}
+                      {durationInput > 0 ? durationInput + ' דקות' : ''}
                     </span>
                   )}
                 </div>
@@ -1255,6 +1325,20 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
             )}
 
             {(currentAppointment.status === 'completed' || currentAppointment.status === 'no_show') && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleMarkBooked}
+                disabled={statusLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 whitespace-nowrap"
+              >
+                <Calendar className="h-5 w-5" />
+                <span>החזר למצב המתנה</span>
+              </motion.button>
+            )}
+
+            {/* כפתור החזר תור גם לסטטוס canceled */}
+            {currentAppointment.status === 'canceled' && (
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

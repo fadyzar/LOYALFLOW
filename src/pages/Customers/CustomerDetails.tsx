@@ -189,12 +189,8 @@ function CustomerDetails() {
 
   const loadCustomer = async () => {
     if (!id || id === 'new') {
-
       return;
     }
-
-
-
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -230,17 +226,17 @@ function CustomerDetails() {
     name
   )
 `)
-
         .eq('customer_id', id)
         .order('start_time', { ascending: false });
 
+      // הצג את כל התורים כולל מבוטלים
       if (!appointmentsError) {
-  const recent = (allAppointments || [])
-    .filter((a) => a.status !== 'canceled')
-    .slice(0, 3);
+        const recent = (allAppointments || [])
+          // .filter((a) => a.status !== 'canceled') // הסר את הסינון הזה!
+          .slice(0, 3);
 
-  setRecentAppointments(recent);
-}
+        setRecentAppointments(recent);
+      }
 
       // Update customer with real statistics
       const completedAppointments = allAppointments?.filter((apt: Appointment) => apt.status === 'completed') || [];
