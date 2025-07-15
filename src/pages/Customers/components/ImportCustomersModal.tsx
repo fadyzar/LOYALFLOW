@@ -78,29 +78,72 @@ export function ImportCustomersModal({ onClose, onImportComplete, businessId }: 
     setImporting(true);
     try {
       let customers: any[] = [];
-     if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: 'array' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawData = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
-  customers = rawData.map((row: any) => ({
-    name: row.name ?? row['שם'] ?? null,
-    phone: row.phone ?? row['טלפון'] ?? null,
-    email: row.email ?? row['אימייל'] ?? null
-  }));
-}
+        customers = rawData.map((row: any) => ({
+          name: row.name ?? row['שם'] ?? null,
+          phone: row.phone ?? row['טלפון'] ?? null,
+          email: row.email ?? row['אימייל'] ?? null
+        }));
+      }
 
       const normalized = customers.map(c => ({
         name: c.name ?? null,
-        phone: c.phone ?? null,
+        phone: c.phone ? String(c.phone).replace(/\s+/g, '') : null,
         email: c.email ?? null,
         business_id: businessId
       }));
 
       if (normalized.length === 0) {
         toast.error('לא נמצאו לקוחות בקובץ');
+        setImporting(false);
         return;
+      }
+
+      // סינון כפילויות טלפון בקובץ עצמו
+      const seenPhones = new Set<string>();
+      const uniqueNormalized = normalized.filter(c => {
+        if (!c.phone) return false;
+        if (seenPhones.has(c.phone)) return false;
+        seenPhones.add(c.phone);
+        return true;
+      });
+
+      if (uniqueNormalized.length < normalized.length) {
+        toast(`${normalized.length - uniqueNormalized.length} כפילויות טלפון בקובץ לא יובאו`);
+      }
+
+      // בדיקת טלפונים כפולים במסד הנתונים
+      const phones = uniqueNormalized.map(c => c.phone).filter(Boolean);
+      const { data: existingCustomers, error: existingError } = await supabase
+        .from('customers')
+        .select('phone')
+        .in('phone', phones)
+        .eq('business_id', businessId);
+
+      if (existingError) {
+        toast.error('שגיאה בבדיקת כפילויות');
+        setImporting(false);
+        return;
+      }
+
+      const existingPhones = (existingCustomers ?? []).map(c => c.phone);
+      const filtered = uniqueNormalized.filter(c => c.phone && !existingPhones.includes(c.phone));
+
+      if (filtered.length === 0) {
+        toast.error('כל הלקוחות בקובץ כבר קיימים לפי טלפון');
+        setImporting(false);
+        return;
+      }
+
+      if (filtered.length < uniqueNormalized.length) {
+        toast(
+          `${uniqueNormalized.length - filtered.length} לקוחות לא יובאו כי הטלפון שלהם כבר קיים במערכת`
+        );
       }
 
       // בדיקת תגובת OPTIONS ל-Edge Function (debug CORS)
@@ -115,28 +158,25 @@ export function ImportCustomersModal({ onClose, onImportComplete, businessId }: 
       } catch (optionsErr) {
         console.error('OPTIONS request error:', optionsErr);
       }
-console.log('🧪 normalized:', normalized);
-console.log('📦 JSON to send:', JSON.stringify({ customers: normalized }));
+      console.log('🧪 normalized:', normalized);
+      console.log('📦 JSON to send:', JSON.stringify({ customers: normalized }));
 
       // קריאה לפונקציה בפועל
       const response = await fetch('https://nkuqcyelxgyihrxyvitb.supabase.co/functions/v1/import_customers', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-  },
-  body: JSON.stringify({ customers: normalized })
-});
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ customers: filtered })
+      });
 
-if (!response.ok) {
-  const errorData = await response.json().catch(() => null);
-  console.error('API Import Error:', errorData);
-  toast.error(`שגיאה בייבוא: ${response.status} ${response.statusText}`);
-  return;
-}
-
-
-      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error('API Import Error:', errorData);
+        toast.error(`שגיאה בייבוא: ${response.status} ${response.statusText}`);
+        return;
+      }
 
       toast.success('הייבוא הסתיים בהצלחה!');
       // גם אם יש שגיאה ב-onImportComplete, הייבוא ל-Supabase הצליח כי הפונקציה בשרת פועלת.

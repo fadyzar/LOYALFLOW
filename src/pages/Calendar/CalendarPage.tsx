@@ -512,6 +512,22 @@ useEffect(() => {
     console.log('isAdmin:', isAdmin);
   }, [user, isAdmin, realRole]);
 
+  // פונקציה למחיקת תור מה-DB ומה-state
+  const handleDeleteAppointment = useCallback(async (id: string) => {
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast.error('שגיאה במחיקת התור');
+      return;
+    }
+
+    // רענון התורים ביומן
+    fetchAppointmentsFromDB().then(setEvents);
+  }, [fetchAppointmentsFromDB, setEvents]);
+
   // ודא שבקומפוננטות DayView/WeekView אתה מעביר events מסוננים לפי selectedStaffId
   const renderCalendarView = () => {
     // Optionally, show a loader while businessHours are loading
@@ -539,7 +555,8 @@ useEffect(() => {
       dragPreviewEvent,
       businessOpenTime: businessHours?.start_time || '',
       businessCloseTime: businessHours?.end_time || '',
-      firstEventRef
+      firstEventRef,
+      onDeleteAppointment: handleDeleteAppointment // הוסף כאן
     };
 
     switch (view) {
@@ -552,7 +569,7 @@ useEffect(() => {
       case 'week':
         return <WeekView {...commonProps} />;
       case 'month':
-        return <MonthView currentDate={currentDate} events={filteredEvents} onDateSelect={handleDateSelect} />;
+        return <MonthView currentDate={currentDate} events={filteredEvents} onDateSelect={handleDateSelect} onDeleteAppointment={handleDeleteAppointment} />;
       default:
         return <WeekView {...commonProps} />;
     }

@@ -747,6 +747,107 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
     };
   }, [appointment.id]);
 
+  // הוסף סטייטים חדשים להטבות ולחישוב מחיר סופי
+  const [benefits, setBenefits] = useState<{
+    basePrice: number;
+    loyaltyDiscount: number;
+    finalPrice: number;
+    loyaltyLevel: string;
+    selectedBenefits: {
+      loyaltyDiscount: boolean;
+    };
+  } | null>(null);
+  const [benefitsLoading, setBenefitsLoading] = useState(false);
+  const [benefitsError, setBenefitsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const calculateBenefits = async () => {
+      if (!currentAppointment.customers?.id || !currentAppointment.service_id || !currentAppointment.staff_id) {
+        setBenefits(null);
+        return;
+      }
+      try {
+        setBenefitsLoading(true);
+        // Get staff service price
+        const { data: staffService } = await supabase
+          .from('staff_services')
+          .select('price')
+          .eq('staff_id', currentAppointment.staff_id)
+          .eq('service_id', currentAppointment.service_id)
+          .single();
+
+        const basePrice = staffService?.price || currentAppointment.services?.price || 0;
+
+        // Get customer's loyalty level
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('loyalty_level')
+          .eq('id', currentAppointment.customers.id)
+          .single();
+
+        if (!customerData) {
+          setBenefits(null);
+          return;
+        }
+
+        // Get loyalty settings
+        const { data: businessData } = await supabase
+          .from('businesses')
+          .select('settings->loyalty')
+          .eq('id', currentAppointment.business_id)
+          .single();
+
+        if (!businessData?.loyalty) {
+          setBenefits(null);
+          return;
+        }
+
+        const loyaltyLevel = customerData.loyalty_level;
+        const loyaltyBenefits = businessData.loyalty.levels?.[loyaltyLevel]?.benefits;
+
+        let loyaltyDiscount = 0;
+        let finalPrice = basePrice;
+        let selectedBenefits = { loyaltyDiscount: false };
+
+        if (loyaltyBenefits?.services_discount) {
+          loyaltyDiscount = (basePrice * loyaltyBenefits.services_discount) / 100;
+          // הנחה תחול רק אם המשתמש סימן אותה (selectedBenefits.loyaltyDiscount)
+          // כברירת מחדל, לא להחיל הנחה
+        }
+
+        setBenefits({
+          basePrice,
+          loyaltyDiscount,
+          finalPrice: basePrice, // תמיד מחיר בסיס בהתחלה
+          loyaltyLevel,
+          selectedBenefits
+        });
+      } catch (error) {
+        setBenefitsError('שגיאה בחישוב ההטבות');
+        setBenefits(null);
+      } finally {
+        setBenefitsLoading(false);
+      }
+    };
+
+    calculateBenefits();
+  }, [currentAppointment.customers?.id, currentAppointment.service_id, currentAppointment.staff_id, currentAppointment.business_id, currentAppointment.services?.price]);
+  
+  // פונקציה להפעלת/ביטול הנחה ע"י המשתמש
+  const toggleLoyaltyDiscount = () => {
+    if (!benefits) return;
+    const newSelected = !benefits.selectedBenefits.loyaltyDiscount;
+    let finalPrice = benefits.basePrice;
+    if (newSelected) {
+      finalPrice -= benefits.loyaltyDiscount;
+    }
+    setBenefits({
+      ...benefits,
+      selectedBenefits: { loyaltyDiscount: newSelected },
+      finalPrice
+    });
+  };
+
   // ב-render של modal/overlay (הקומפוננטה הראשית):
   return (
     <motion.div
@@ -869,11 +970,42 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                       currentAppointment.services?.name_he ||
                       currentAppointment.service_name}
                   </span>
-                  {/* הצגת מחיר השירות בצורה מודרנית */}
-                  {typeof currentAppointment.services?.price === 'number' && (
-                    <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs shadow">
-                      ₪{currentAppointment.services.price}
+                  {/* הצגת מחיר סופי כולל הנחה רק אם המשתמש סימן אותה */}
+                  {benefitsLoading ? (
+                    <span className="ml-2 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-bold text-xs shadow">
+                      טוען מחיר...
                     </span>
+                  ) : benefits ? (
+                    <>
+                      <span className="ml-2 px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-bold text-xs shadow">
+                        ₪{benefits.finalPrice}
+                      </span>
+                      {benefits.loyaltyDiscount > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation(); // מונע כניסה לעריכת שירות
+                            toggleLoyaltyDiscount();
+                          }}
+                          className={`ml-2 px-2 py-0.5 rounded-full font-bold text-xs shadow border ${
+                            benefits.selectedBenefits.loyaltyDiscount
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-400'
+                              : 'bg-gray-50 text-gray-400 border-gray-300'
+                          }`}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {benefits.selectedBenefits.loyaltyDiscount
+                            ? `הנחת ${benefits.loyaltyLevel}: -₪${benefits.loyaltyDiscount}`
+                            : `הפעל הנחת ${benefits.loyaltyLevel}`}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    typeof currentAppointment.services?.price === 'number' && (
+                      <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs shadow">
+                        ₪{currentAppointment.services.price}
+                      </span>
+                    )
                   )}
                 </div>
 

@@ -3,6 +3,7 @@ import { CalendarEvent, DragState } from '../../types/calendar';
 import EventCard from './EventCard';
 import { useNavigate } from 'react-router-dom';
 import { CurrentTimeIndicator } from '../../components/calendar/CurrentTimeIndicator';
+import { FiTrash2 } from 'react-icons/fi'; // הוסף אייקון מודרני
 
 interface DayViewProps {
   currentDate: Date;
@@ -19,6 +20,7 @@ interface DayViewProps {
   dragPreviewEvent?: CalendarEvent | null;
   firstEventRef?: React.RefObject<HTMLDivElement>;
   onTimeSlotClick?: (date: Date) => void; // הוסף prop אופציונלי
+  onDeleteAppointment?: (id: string) => void; // הוסף prop למחיקה
 }
 
 const CELL_HEIGHT = 80;
@@ -39,6 +41,7 @@ const DayView: React.FC<DayViewProps> = ({
   dragPreviewEvent,
   firstEventRef,
   onTimeSlotClick,
+  onDeleteAppointment,
 }) => {
   const navigate = useNavigate();
   const [showChoice, setShowChoice] = useState<{ open: boolean; hour: number | null }>({ open: false, hour: null });
@@ -350,6 +353,11 @@ const DayView: React.FC<DayViewProps> = ({
                     adjustedTop += dragDiff;
                   }
 
+                  // תנאי למחיקת תור: סטטוס canceled או צבע אדום
+                  const canDelete =
+                    (event.status && event.status === 'canceled') ||
+                    (event.color && event.color === '#EF4444');
+
                   return (
                     <div
                       key={event.id}
@@ -370,6 +378,44 @@ const DayView: React.FC<DayViewProps> = ({
                         onEventClick={onEventClick}
                         isDragging={dragState.isDragging && dragState.draggedEvent?.id === event.id}
                       />
+                      {/* כפתור מחיקה ליד המילה "בוטל" ממורכז לגובה הכרטיס */}
+                      {canDelete && onDeleteAppointment && (
+                        <div
+                          className="flex items-center gap-1 z-40"
+                          style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            pointerEvents: 'auto',
+                          }}
+                        >
+                          {/* מילה "בוטל" (אם מופיעה בכותרת) */}
+                          {event.title?.includes('בוטל') && (
+                            <span className="text-xs text-red-500 font-semibold">
+                              בוטל
+                            </span>
+                          )}
+                          <button
+                            className="bg-transparent p-0 m-0 flex items-center justify-center hover:bg-transparent"
+                            title="מחק תור"
+                            style={{
+                              outline: 'none',
+                              cursor: 'pointer',
+                              minWidth: 0,
+                              minHeight: 0,
+                              width: '22px',
+                              height: '22px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onClick={() => onDeleteAppointment(event.id)}
+                          >
+                            <FiTrash2 size={18} className="text-gray-700 hover:text-red-500 transition-colors" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

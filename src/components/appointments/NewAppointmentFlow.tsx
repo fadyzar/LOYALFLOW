@@ -407,6 +407,14 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
     }
   };
 
+  // הוסף state להנחה (אם תרצה להפעיל בעתיד)
+  const [discount, setDiscount] = useState<number>(0);
+  const [discountActive, setDiscountActive] = useState(true);
+
+  // חישוב מחיר סופי (הגדר בתוך הפונקציה, לא מחוץ ל-render)
+  const priceNum = Number(formData.servicePrice) || 0;
+  const finalPrice = discountActive ? Math.max(0, priceNum - discount) : priceNum;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -490,12 +498,15 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
           )}
 
           {currentStep === 'summary' && (
-            <AppointmentSummary
-              data={formData}
-              onEdit={setCurrentStep}
-              onConfirm={handleAppointmentCreate}
-              loading={loading}
-            />
+            <div>
+              {/* סיכום פרטי התור */}
+              <AppointmentSummary
+                data={formData}
+                onEdit={setCurrentStep}
+                onConfirm={handleAppointmentCreate}
+                loading={loading}
+              />
+            </div>
           )}
         </div>
 

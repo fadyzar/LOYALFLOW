@@ -179,10 +179,14 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .eq('id', data.customerId as unknown as string)
           .single();
 
+        console.log('customerData:', customerData);
+
         if (!customerData) return;
 
         // Get loyalty settings
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('user:', user);
+
         if (!user) return;
 
         const { data: userData } = await supabase
@@ -190,6 +194,8 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .select('business_id')
           .eq('id', user.id)
           .single();
+
+        console.log('userData:', userData);
 
         if (!userData?.business_id) return;
 
@@ -199,10 +205,15 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
           .eq('id', userData.business_id)
           .single();
 
+        console.log('businessData:', businessData);
+
         if (!businessData?.loyalty) return;
 
         const loyaltyLevel = customerData.loyalty_level;
-        const loyaltyBenefits = (businessData.loyalty as unknown as BusinessData['loyalty']).levels[loyaltyLevel].benefits;
+        console.log('loyaltyLevel:', loyaltyLevel);
+
+        const loyaltyBenefits = (businessData.loyalty as unknown as BusinessData['loyalty']).levels[loyaltyLevel]?.benefits;
+        console.log('loyaltyBenefits:', loyaltyBenefits);
 
         // Calculate benefits
         let finalPrice = basePrice;
@@ -293,7 +304,7 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
       </div>
 
       {/* Benefits */}
-      {benefitsLoading && (
+      {benefitsLoading && !benefits && (
         <div className="bg-gray-50 p-4 rounded-2xl shadow border border-blue-100">
           <div className="flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -308,66 +319,76 @@ export function AppointmentSummary({ data, onEdit, onConfirm, loading }: Appoint
         </div>
       )}
 
-      {benefits && (
-        <div className="bg-gradient-to-br from-green-50 to-white p-4 rounded-2xl shadow-sm border border-green-100">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="font-semibold text-green-700">הטבות</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span>מחיר בסיס:</span>
-              <span className="font-semibold">₪{benefits.basePrice}</span>
-            </div>
-            
-            {benefits.loyaltyDiscount > 0 && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleBenefit('loyaltyDiscount')}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
-                      benefits.selectedBenefits.loyaltyDiscount
-                        ? 'bg-green-600 border-green-600'
-                        : 'border-gray-300'
-                    }`}
-                  >
-                    {benefits.selectedBenefits.loyaltyDiscount && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </button>
-                  <span>הנחת {benefits.loyaltyLevel}:</span>
-                </div>
-                <span className="text-green-600 font-bold">- ₪{benefits.loyaltyDiscount}</span>
-              </div>
-            )}
-            
-            {benefits.isFreeAppointment && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleBenefit('freeAppointment')}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
-                      benefits.selectedBenefits.freeAppointment
-                        ? 'bg-green-600 border-green-600'
-                        : 'border-gray-300'
-                    }`}
-                  >
-                    {benefits.selectedBenefits.freeAppointment && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </button>
-                  <span>תור חינם (הטבת {benefits.loyaltyLevel}):</span>
-                </div>
-                <span className="text-green-600 font-bold">תור חינם!</span>
-              </div>
-            )}
-            
-            <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
-              <span>מחיר סופי:</span>
-              <span className="text-green-700">₪{benefits.finalPrice}</span>
-            </div>
-          </div>
+      <div className="bg-gradient-to-br from-green-50 to-white p-4 rounded-2xl shadow-sm border border-green-100">
+        <div className="flex items-center gap-3 mb-2">
+          <h3 className="font-semibold text-green-700">הטבות</h3>
         </div>
-      )}
+        <div className="space-y-2">
+          {!benefits ? (
+            <>
+              <div className="text-gray-500 text-center py-4">לא נמצאו הטבות</div>
+              <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
+                <span>מחיר סופי:</span>
+                <span className="text-green-700">₪{data.servicePrice}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span>מחיר בסיס:</span>
+                <span className="font-semibold">₪{benefits.basePrice}</span>
+              </div>
+              
+              {benefits.loyaltyDiscount > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleBenefit('loyaltyDiscount')}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                        benefits.selectedBenefits.loyaltyDiscount
+                          ? 'bg-green-600 border-green-600'
+                          : 'border-gray-300'
+                      }`}
+                    >
+                      {benefits.selectedBenefits.loyaltyDiscount && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </button>
+                    <span>הנחת {benefits.loyaltyLevel}:</span>
+                  </div>
+                  <span className="text-green-600 font-bold">- ₪{benefits.loyaltyDiscount}</span>
+                </div>
+              )}
+              
+              {benefits.isFreeAppointment && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleBenefit('freeAppointment')}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                        benefits.selectedBenefits.freeAppointment
+                          ? 'bg-green-600 border-green-600'
+                          : 'border-gray-300'
+                      }`}
+                    >
+                      {benefits.selectedBenefits.freeAppointment && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </button>
+                    <span>תור חינם (הטבת {benefits.loyaltyLevel}):</span>
+                  </div>
+                  <span className="text-green-600 font-bold">תור חינם!</span>
+                </div>
+              )}
+              
+              <div className="flex items-center justify-between font-bold text-lg pt-2 border-t border-green-200">
+                <span>מחיר סופי:</span>
+                <span className="text-green-700">₪{benefits.finalPrice}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Date and Time */}
       <div className="bg-gradient-to-br from-yellow-50 to-white p-4 rounded-2xl shadow-sm border border-yellow-100">
