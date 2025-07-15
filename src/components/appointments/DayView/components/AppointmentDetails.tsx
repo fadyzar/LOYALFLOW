@@ -277,6 +277,13 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
       toast.error('משך השירות חייב להיות מספר חיובי');
       return;
     }
+    // אם אין שינוי אמיתי, שמור מיד וסגור את המודל
+    if (val === currentAppointment.duration) {
+      setEditingDuration(false);
+      setShowEditConfirm(false);
+      setPendingChanges({});
+      return;
+    }
     setPendingChanges(prev => ({ ...prev, duration: val }));
     setEditingDuration(false);
     setShowEditConfirm(true);
@@ -284,6 +291,25 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
 
   // שדה קלט שעת סיום (רק אם המשתמש בוחר)
   const handleEndTimeSelect = (newEndTime: string) => {
+    // אם המשתמש לא שינה כלום או מחק את הערך, פשוט החזר את השעה הישנה וסגור עריכה
+    if (!newEndTime || newEndTime === format(parseISO(currentAppointment.end_time), 'HH:mm')) {
+      setSelectedEndTime(null);
+      setEditingTime(false);
+      setShowEditConfirm(false);
+      setPendingChanges({});
+      return;
+    }
+    // בדוק ששעת סיום גדולה משעת התחלה
+    if (selectedTime && newEndTime) {
+      const [startH, startM] = selectedTime.split(':').map(Number);
+      const [endH, endM] = newEndTime.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+      if (endMinutes <= startMinutes) {
+        toast.error('שעת סיום חייבת להיות אחרי שעת התחלה');
+        return;
+      }
+    }
     setSelectedEndTime(newEndTime);
     setPendingChanges(prev => ({ ...prev, end_time: newEndTime }));
     setShowEditConfirm(true);
@@ -721,18 +747,23 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
     };
   }, [appointment.id]);
 
+  // ב-render של modal/overlay (הקומפוננטה הראשית):
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]" // <-- שים לב z-index גבוה
-      style={{
-        // טריק: אפשר גלילה תמידית על המודל (אם התוכן גבוה מהמסך)
-        overflowY: 'auto'
-      }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]"
+      style={{ overflowY: 'auto' }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // אם המשתמש לחץ מחוץ למודל (כלומר על הרקע), אפס מצב עריכה של שעה ושעת סיום
+        if (e.target === e.currentTarget) {
+          setEditingTime(false);
+          setSelectedEndTime(null);
+          setShowEditConfirm(false);
+          setPendingChanges({});
+          onClose();
+        }
       }}
     >
       <motion.div
@@ -1296,7 +1327,18 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={handleSaveChanges}
+                    onClick={() => {
+                      // אם אין שינוי אמיתי, סגור את המודל בלי לשמור
+                      const hasRealChange = Object.entries(pendingChanges).some(
+                        ([key, val]) => val !== undefined && val !== null && val !== ''
+                      );
+                      if (!hasRealChange) {
+                        setShowEditConfirm(false);
+                        setPendingChanges({});
+                        return;
+                      }
+                      handleSaveChanges();
+                    }}
                     disabled={loading}
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                   >
