@@ -108,6 +108,36 @@ export function NewAppointmentFlow({ onClose, onSuccess, initialDate, initialSta
     time: '09:00'
   });
 
+  // --- הוספת אתחול אוטומטי ללקוח אם הגיע מ-CustomerDetails ---
+  useEffect(() => {
+    const customerId = location.state?.customerId;
+    if (customerId && !formData.customerId) {
+      // נטען את פרטי הלקוח מה-DB ונעדכן את formData
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('customers')
+            .select('id, name, phone, email')
+            .eq('id', customerId)
+            .single();
+          if (error || !data) return;
+          setFormData(prev => ({
+            ...prev,
+            customerId: data.id,
+            customerName: data.name,
+            customerPhone: data.phone,
+            customerEmail: data.email || ''
+          }));
+          setCurrentStep('service');
+        } catch (err) {
+          // אפשר להוסיף הודעת שגיאה אם תרצה
+        }
+      })();
+    }
+  // נריץ רק פעם אחת בתחילת הקומפוננטה
+  // eslint-disable-next-line
+  }, []);
+
   // Determine if coming from calendar and get selected date
   const checkExistingAppointments = async () => {
     if (!businessId || !formData.customerId) return null;

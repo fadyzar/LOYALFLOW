@@ -19,6 +19,15 @@ export function CustomerForm({ customer, onSubmit, onCancel }: CustomerFormProps
     email: customer?.email || ''
   });
 
+  // ודא שהערכים של formData מתעדכנים כאשר customer משתנה (לעריכה מהירה)
+  React.useEffect(() => {
+    setFormData({
+      name: customer?.name || '',
+      phone: customer?.phone || '',
+      email: customer?.email || ''
+    });
+  }, [customer]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 

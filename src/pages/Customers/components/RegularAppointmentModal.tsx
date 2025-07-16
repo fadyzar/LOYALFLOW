@@ -393,14 +393,15 @@ export function RegularAppointmentModal({ onClose, customer, businessSettings }:
 
     try {
       setLoading(true);
-      const calculatedBenefits = await calculateBenefits(new Date(startDate));
-      setBenefits(calculatedBenefits);
-    const previews = generateAppointmentPreviews();
-    setAppointmentPreviews(previews);
-    setShowConfirmation(true);
+      // הסר את חישוב ההטבות
+      // const calculatedBenefits = await calculateBenefits(new Date(startDate));
+      // setBenefits(calculatedBenefits);
+      const previews = generateAppointmentPreviews();
+      setAppointmentPreviews(previews);
+      setShowConfirmation(true);
     } catch (error) {
-      console.error('Error calculating benefits:', error);
-      setError('שגיאה בחישוב ההטבות');
+      console.error('Error generating previews:', error);
+      setError('שגיאה ביצירת התצוגה המקדימה');
     } finally {
       setLoading(false);
     }
@@ -409,8 +410,9 @@ export function RegularAppointmentModal({ onClose, customer, businessSettings }:
   const handleConfirmAppointments = async () => {
     try {
       setLoading(true);
-      if (!benefits || !selectedService) {
-        throw new Error('לא ניתן ליצור תורים ללא חישוב הטבות');
+      // הסר את הדרישה ל-benefits
+      if (!selectedService) {
+        throw new Error('לא ניתן ליצור תורים ללא שירות');
       }
       if (!customer?.business_id) {
         throw new Error('חסר מזהה עסק');
@@ -418,6 +420,10 @@ export function RegularAppointmentModal({ onClose, customer, businessSettings }:
 
       // Create all appointments
       for (const preview of appointmentPreviews) {
+        const staffService = getStaffService(selectedService.id);
+        const basePrice = staffService?.price || selectedService.price;
+        const durationMinutes = intervalToMinutes(staffService?.duration || selectedService.duration);
+
         const { error } = await supabase
           .from('appointments')
           .insert({
@@ -429,14 +435,9 @@ export function RegularAppointmentModal({ onClose, customer, businessSettings }:
             end_time: preview.end.toISOString(),
             status: 'booked',
             metadata: {
-              price: benefits.finalPrice,
-              duration: intervalToMinutes(currentStaffService?.duration || selectedService.duration),
-              is_free_appointment: benefits.isFreeAppointment || benefits.isBirthdayAppointment,
-              loyalty_benefits: {
-                is_free_appointment: benefits.isFreeAppointment,
-                is_birthday_appointment: benefits.isBirthdayAppointment,
-                loyalty_discount: benefits.loyaltyDiscount
-              }
+              price: basePrice,
+              duration: durationMinutes,
+              // לא מחשב הטבות נאמנות
             }
           });
 
@@ -772,4 +773,4 @@ export function RegularAppointmentModal({ onClose, customer, businessSettings }:
       </motion.div>
     </AnimatePresence>
   );
-} 
+}

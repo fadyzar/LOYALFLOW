@@ -243,7 +243,7 @@ function Customers() {
                         boxShadow: '0 2px 8px #6366f11a',
                         outline: 'none',
                         backgroundImage: 'linear-gradient(90deg,#eef2ff 0%,#fff 100%)',
-                        border: 'none', // הסר את המסגרת
+                        border: 'none',
                       }}
                     >
                       <option value="all">כל הרמות</option>

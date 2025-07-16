@@ -933,6 +933,34 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
     });
   };
 
+  // הוסף סטייט loyaltyEnabled בתחילת הקומפוננטה
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean>(true);
+
+  // טען את הגדרת ההנחות מה-Business
+  useEffect(() => {
+    async function fetchLoyaltyEnabled() {
+      const { data: businessData } = await supabase
+        .from('businesses')
+        .select('settings')
+        .eq('id', appointment.business_id)
+        .single();
+
+      let enabled = true;
+      if (
+        businessData?.settings?.loyalty &&
+        typeof businessData.settings.loyalty.enabled === 'boolean'
+      ) {
+        enabled = businessData.settings.loyalty.enabled;
+      } else if (
+        typeof businessData?.settings?.loyalty_enabled === 'boolean'
+      ) {
+        enabled = businessData.settings.loyalty_enabled;
+      }
+      setLoyaltyEnabled(enabled ?? false);
+    }
+    fetchLoyaltyEnabled();
+  }, [appointment.business_id]);
+
   // ב-render של modal/overlay (הקומפוננטה הראשית):
   return (
     <motion.div
@@ -1069,15 +1097,18 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                         <button
                           type="button"
                           onClick={(e) => {
-                            e.stopPropagation(); // מונע כניסה לעריכת שירות
-                            toggleLoyaltyDiscount();
+                            e.stopPropagation();
+                            if (loyaltyEnabled) {
+                              toggleLoyaltyDiscount();
+                            }
                           }}
+                          disabled={!loyaltyEnabled}
                           className={`ml-2 px-2 py-0.5 rounded-full font-bold text-xs shadow border ${
                             benefits.selectedBenefits.loyaltyDiscount
                               ? 'bg-yellow-50 text-yellow-700 border-yellow-400'
                               : 'bg-gray-50 text-gray-400 border-gray-300'
-                          }`}
-                          style={{ cursor: 'pointer' }}
+                          } ${!loyaltyEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          style={{ cursor: loyaltyEnabled ? 'pointer' : 'not-allowed' }}
                         >
                           {benefits.selectedBenefits.loyaltyDiscount
                             ? `הנחת ${benefits.loyaltyLevel}: -₪${benefits.loyaltyDiscount}`
@@ -1093,7 +1124,7 @@ export function AppointmentDetails({ appointment, onClose, onUpdate }: Appointme
                     )
                   )}
                 </div>
-
+                
                 {/* Phone */}
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-gray-400" />
